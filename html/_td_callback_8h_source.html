@@ -78,7 +78,7 @@ $(function() {
 <div class="line"><a name="l00007"></a><span class="lineno">    7</span>&#160;<span class="preprocessor">#pragma once</span></div>
 <div class="line"><a name="l00008"></a><span class="lineno">    8</span>&#160; </div>
 <div class="line"><a name="l00010"></a><span class="lineno">   10</span>&#160; </div>
-<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="preprocessor">#include &quot;td/telegram/td_api.h&quot;</span></div>
+<div class="line"><a name="l00011"></a><span class="lineno">   11</span>&#160;<span class="preprocessor">#include &quot;<a class="code" href="td__api_8h.html">td/telegram/td_api.h</a>&quot;</span></div>
 <div class="line"><a name="l00012"></a><span class="lineno">   12</span>&#160; </div>
 <div class="line"><a name="l00013"></a><span class="lineno">   13</span>&#160;<span class="preprocessor">#include &lt;cstdint&gt;</span></div>
 <div class="line"><a name="l00014"></a><span class="lineno">   14</span>&#160; </div>
@@ -86,9 +86,9 @@ $(function() {
 <div class="line"><a name="l00016"></a><span class="lineno">   16</span>&#160; </div>
 <div class="line"><a name="l00020"></a><span class="lineno"><a class="line" href="classtd_1_1_td_callback.html">   20</a></span>&#160;<span class="keyword">class </span><a class="code" href="classtd_1_1_td_callback.html">TdCallback</a> {</div>
 <div class="line"><a name="l00021"></a><span class="lineno">   21</span>&#160; <span class="keyword">public</span>:</div>
-<div class="line"><a name="l00027"></a><span class="lineno"><a class="line" href="classtd_1_1_td_callback.html#af2f7ff17971f823b885fb92cf3cbdd2f">   27</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classtd_1_1_td_callback.html#af2f7ff17971f823b885fb92cf3cbdd2f">on_result</a>(std::uint64_t <span class="keywordtype">id</span>, td_api::object_ptr&lt;td_api::Object&gt; result) = 0;</div>
+<div class="line"><a name="l00027"></a><span class="lineno"><a class="line" href="classtd_1_1_td_callback.html#af2f7ff17971f823b885fb92cf3cbdd2f">   27</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classtd_1_1_td_callback.html#af2f7ff17971f823b885fb92cf3cbdd2f">on_result</a>(std::uint64_t <span class="keywordtype">id</span>, <a class="code" href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">td_api::object_ptr&lt;td_api::Object&gt;</a> result) = 0;</div>
 <div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160; </div>
-<div class="line"><a name="l00034"></a><span class="lineno"><a class="line" href="classtd_1_1_td_callback.html#a1936499c5f0ce9eb6124964ebe897e8e">   34</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classtd_1_1_td_callback.html#a1936499c5f0ce9eb6124964ebe897e8e">on_error</a>(std::uint64_t <span class="keywordtype">id</span>, td_api::object_ptr&lt;td_api::error&gt; error) = 0;</div>
+<div class="line"><a name="l00034"></a><span class="lineno"><a class="line" href="classtd_1_1_td_callback.html#a1936499c5f0ce9eb6124964ebe897e8e">   34</a></span>&#160;  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code" href="classtd_1_1_td_callback.html#a1936499c5f0ce9eb6124964ebe897e8e">on_error</a>(std::uint64_t <span class="keywordtype">id</span>, <a class="code" href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">td_api::object_ptr&lt;td_api::error&gt;</a> error) = 0;</div>
 <div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160; </div>
 <div class="line"><a name="l00039"></a><span class="lineno"><a class="line" href="classtd_1_1_td_callback.html#ad5fbbb911fbc603774fb4258c1d05d58">   39</a></span>&#160;  <span class="keyword">virtual</span> <a class="code" href="classtd_1_1_td_callback.html#ad5fbbb911fbc603774fb4258c1d05d58">~TdCallback</a>() = <span class="keywordflow">default</span>;</div>
 <div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160;};</div>
@@ -96,8 +96,10 @@ $(function() {
 <div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;}  <span class="comment">// namespace td</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <div class="ttc" id="aclasstd_1_1_td_callback_html_af2f7ff17971f823b885fb92cf3cbdd2f"><div class="ttname"><a href="classtd_1_1_td_callback.html#af2f7ff17971f823b885fb92cf3cbdd2f">td::TdCallback::on_result</a></div><div class="ttdeci">virtual void on_result(std::uint64_t id, td_api::object_ptr&lt; td_api::Object &gt; result)=0</div></div>
+<div class="ttc" id="atd__api_8h_html_a12722e0b9a9a350d15997d3bb3cb61d4"><div class="ttname"><a href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">td::td_api::object_ptr</a></div><div class="ttdeci">::td::tl_object_ptr&lt; Type &gt; object_ptr</div><div class="ttdef"><b>Definition:</b> td_api.h:58</div></div>
 <div class="ttc" id="aclasstd_1_1_td_callback_html_a1936499c5f0ce9eb6124964ebe897e8e"><div class="ttname"><a href="classtd_1_1_td_callback.html#a1936499c5f0ce9eb6124964ebe897e8e">td::TdCallback::on_error</a></div><div class="ttdeci">virtual void on_error(std::uint64_t id, td_api::object_ptr&lt; td_api::error &gt; error)=0</div></div>
 <div class="ttc" id="aclasstd_1_1_td_callback_html"><div class="ttname"><a href="classtd_1_1_td_callback.html">td::TdCallback</a></div><div class="ttdef"><b>Definition:</b> TdCallback.h:20</div></div>
+<div class="ttc" id="atd__api_8h_html"><div class="ttname"><a href="td__api_8h.html">td_api.h</a></div></div>
 <div class="ttc" id="aclasstd_1_1_td_callback_html_ad5fbbb911fbc603774fb4258c1d05d58"><div class="ttname"><a href="classtd_1_1_td_callback.html#ad5fbbb911fbc603774fb4258c1d05d58">td::TdCallback::~TdCallback</a></div><div class="ttdeci">virtual ~TdCallback()=default</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>

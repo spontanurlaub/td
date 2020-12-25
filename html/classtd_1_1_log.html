@@ -93,7 +93,7 @@ Static Public Member Functions</h2></td></tr>
 <tr class="separator:ac563e6c5d0e444ec54b520417f33079e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
-<div class="textblock"><p>Interface for managing the internal logging of TDLib. By default TDLib writes logs to stderr or an OS specific log and uses a verbosity level of 5. These functions are deprecated since TDLib 1.4.0 in favor of the td::td_api::setLogVerbosityLevel, td::td_api::setLogStream and other synchronous requests for managing the intrenal TDLib logging. </p>
+<div class="textblock"><p>Interface for managing the internal logging of TDLib. By default TDLib writes logs to stderr or an OS specific log and uses a verbosity level of 5. These functions are deprecated since TDLib 1.4.0 in favor of the <a class="el" href="classtd_1_1td__api_1_1set_log_verbosity_level.html">td::td_api::setLogVerbosityLevel</a>, <a class="el" href="classtd_1_1td__api_1_1set_log_stream.html">td::td_api::setLogStream</a> and other synchronous requests for managing the intrenal TDLib logging. </p>
 </div><h2 class="groupheader">Member Typedef Documentation</h2>
 <a id="abc0508244114de1fd6d89372a31b4349"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#abc0508244114de1fd6d89372a31b4349">&#9670;&nbsp;</a></span>FatalErrorCallbackPtr</h2>
@@ -174,7 +174,7 @@ Static Public Member Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 <p>Sets the path to the file to where the internal TDLib log will be written. By default TDLib writes logs to stderr or an OS specific log. Use this method to write the log to a file instead.</p>
-<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000001">Deprecated:</a></b></dt><dd>Use synchronous td::td_api::setLogStream request instead. </dd></dl>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000001">Deprecated:</a></b></dt><dd>Use synchronous <a class="el" href="classtd_1_1td__api_1_1set_log_stream.html">td::td_api::setLogStream</a> request instead. </dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">file_path</td><td>Path to a file where the internal TDLib log will be written. Use an empty path to switch back to the default logging behaviour. </td></tr>
@@ -209,7 +209,7 @@ Static Public Member Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 <p>Sets the maximum size of the file to where the internal TDLib log is written before the file will be auto-rotated. Unused if log is not written to a file. Defaults to 10 MB.</p>
-<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000002">Deprecated:</a></b></dt><dd>Use synchronous td::td_api::setLogStream request instead. </dd></dl>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000002">Deprecated:</a></b></dt><dd>Use synchronous <a class="el" href="classtd_1_1td__api_1_1set_log_stream.html">td::td_api::setLogStream</a> request instead. </dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">max_file_size</td><td>The maximum size of the file to where the internal TDLib log is written before the file will be auto-rotated. Should be positive. </td></tr>
@@ -243,7 +243,7 @@ Static Public Member Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 <p>Sets the verbosity level of the internal logging of TDLib. By default the TDLib uses a verbosity level of 5 for logging.</p>
-<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000003">Deprecated:</a></b></dt><dd>Use synchronous td::td_api::setLogVerbosityLevel request instead. </dd></dl>
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000003">Deprecated:</a></b></dt><dd>Use synchronous <a class="el" href="classtd_1_1td__api_1_1set_log_verbosity_level.html">td::td_api::setLogVerbosityLevel</a> request instead. </dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">new_verbosity_level</td><td>New value of the verbosity level for logging. Value 0 corresponds to fatal errors, value 1 corresponds to errors, value 2 corresponds to warnings and debug warnings, value 3 corresponds to informational, value 4 corresponds to debug, value 5 corresponds to verbose debug, value greater than 5 and up to 1024 can be used to enable even more logging. </td></tr>

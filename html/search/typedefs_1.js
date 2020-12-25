@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['fatalerrorcallbackptr_132',['FatalErrorCallbackPtr',['../classtd_1_1_log.html#abc0508244114de1fd6d89372a31b4349',1,'td::Log']]]
+  ['baseobject_6019',['BaseObject',['../td__api_8h.html#a37f7ffe6cdb0dd34b41953fa6980e270',1,'td::td_api']]],
+  ['bytes_6020',['bytes',['../td__api_8h.html#a337c78944e0080b553acd0efa27887bb',1,'td::td_api']]]
 ];

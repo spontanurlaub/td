@@ -144,7 +144,7 @@ template&lt;class Type , class... Args&gt; </div>
 </div><div class="memdoc">
 <p>A function to create a dynamically allocated TL-object. Can be treated as an analogue of std::make_unique. Usage example: </p><div class="fragment"><div class="line"><span class="keyword">auto</span> get_authorization_state_request = td::make_tl_object&lt;td::td_api::getAuthorizationState&gt;();</div>
 <div class="line"><span class="keyword">auto</span> message_text = td::make_tl_object&lt;td::td_api::formattedText&gt;(<span class="stringliteral">&quot;Hello, world!!!&quot;</span>,</div>
-<div class="line">                    td::td_api::array&lt;<a class="code" href="_tl_object_8h.html#a5a2eff6f33cb7bbfacb71e4fe4ef3151">td::tl_object_ptr&lt;td::td_api::textEntity&gt;</a>&gt;());</div>
+<div class="line">                    <a class="code" href="td__api_8h.html#a79ab39931fd45d82e25fe81e8690bba0">td::td_api::array</a>&lt;<a class="code" href="_tl_object_8h.html#a5a2eff6f33cb7bbfacb71e4fe4ef3151">td::tl_object_ptr&lt;td::td_api::textEntity&gt;</a>&gt;());</div>
 <div class="line"><span class="keyword">auto</span> send_message_request = td::make_tl_object&lt;td::td_api::sendMessage&gt;(chat_id, 0, 0, <span class="keyword">nullptr</span>, <span class="keyword">nullptr</span>,</div>
 <div class="line">     td::make_tl_object&lt;td::td_api::inputMessageText&gt;(std::move(message_text), <span class="keyword">false</span>, <span class="keyword">true</span>));</div>
 </div><!-- fragment --><dl class="tparams"><dt>Template Parameters</dt><dd>
@@ -203,30 +203,30 @@ template&lt;class ToT , class FromT &gt; </div>
 </div><div class="memdoc">
 <p>A function to downcast a wrapped pointer to a TL-object to a pointer to its subclass. Casting an object to an incorrect type will lead to undefined behaviour. Examples of usage: </p><div class="fragment"><div class="line"><a class="code" href="_tl_object_8h.html#a5a2eff6f33cb7bbfacb71e4fe4ef3151">td::tl_object_ptr&lt;td::td_api::callState&gt;</a> call_state = ...;</div>
 <div class="line"><span class="keywordflow">switch</span> (call_state-&gt;get_id()) {</div>
-<div class="line">  <span class="keywordflow">case</span> td::td_api::callStatePending::ID: {</div>
+<div class="line">  <span class="keywordflow">case</span> <a class="code" href="classtd_1_1td__api_1_1call_state_pending.html#a3d63b3c326424e6e802b5512023252ef">td::td_api::callStatePending::ID</a>: {</div>
 <div class="line">    <span class="keyword">auto</span> state = td::move_tl_object_as&lt;td::td_api::callStatePending&gt;(call_state);</div>
 <div class="line">    <span class="comment">// use state</span></div>
 <div class="line">    <span class="keywordflow">break</span>;</div>
 <div class="line">  }</div>
-<div class="line">  <span class="keywordflow">case</span> td::td_api::callStateExchangingKeys::ID: {</div>
+<div class="line">  <span class="keywordflow">case</span> <a class="code" href="classtd_1_1td__api_1_1call_state_exchanging_keys.html#a4a70b52c0c8631f3430b6f178867f8cd">td::td_api::callStateExchangingKeys::ID</a>: {</div>
 <div class="line">    <span class="comment">// no additional fields, so cast isn&#39;t needed</span></div>
 <div class="line">    <span class="keywordflow">break</span>;</div>
 <div class="line">  }</div>
-<div class="line">  <span class="keywordflow">case</span> td::td_api::callStateReady::ID: {</div>
+<div class="line">  <span class="keywordflow">case</span> <a class="code" href="classtd_1_1td__api_1_1call_state_ready.html#a64bab89e282d5feef3e5f1f6c88be7a9">td::td_api::callStateReady::ID</a>: {</div>
 <div class="line">    <span class="keyword">auto</span> state = td::move_tl_object_as&lt;td::td_api::callStateReady&gt;(call_state);</div>
 <div class="line">    <span class="comment">// use state</span></div>
 <div class="line">    <span class="keywordflow">break</span>;</div>
 <div class="line">  }</div>
-<div class="line">  <span class="keywordflow">case</span> td::td_api::callStateHangingUp::ID: {</div>
+<div class="line">  <span class="keywordflow">case</span> <a class="code" href="classtd_1_1td__api_1_1call_state_hanging_up.html#a424126e19aae11e20bc208806aad5737">td::td_api::callStateHangingUp::ID</a>: {</div>
 <div class="line">    <span class="comment">// no additional fields, so cast isn&#39;t needed</span></div>
 <div class="line">    <span class="keywordflow">break</span>;</div>
 <div class="line">  }</div>
-<div class="line">  <span class="keywordflow">case</span> td::td_api::callStateDiscarded::ID: {</div>
+<div class="line">  <span class="keywordflow">case</span> <a class="code" href="classtd_1_1td__api_1_1call_state_discarded.html#a0fff403cfe503d109eea51e67a6a0887">td::td_api::callStateDiscarded::ID</a>: {</div>
 <div class="line">    <span class="keyword">auto</span> state = td::move_tl_object_as&lt;td::td_api::callStateDiscarded&gt;(call_state);</div>
 <div class="line">    <span class="comment">// use state</span></div>
 <div class="line">    <span class="keywordflow">break</span>;</div>
 <div class="line">  }</div>
-<div class="line">  <span class="keywordflow">case</span> td::td_api::callStateError::ID: {</div>
+<div class="line">  <span class="keywordflow">case</span> <a class="code" href="classtd_1_1td__api_1_1call_state_error.html#a3d465daf13b151d719dd4faa35370a12">td::td_api::callStateError::ID</a>: {</div>
 <div class="line">    <span class="keyword">auto</span> state = td::move_tl_object_as&lt;td::td_api::callStateError&gt;(call_state);</div>
 <div class="line">    <span class="comment">// use state</span></div>
 <div class="line">    <span class="keywordflow">break</span>;</div>
@@ -251,7 +251,14 @@ template&lt;class ToT , class FromT &gt; </div>
 </div>
 </div>
 </div><!-- contents -->
+<div class="ttc" id="aclasstd_1_1td__api_1_1call_state_error_html_a3d465daf13b151d719dd4faa35370a12"><div class="ttname"><a href="classtd_1_1td__api_1_1call_state_error.html#a3d465daf13b151d719dd4faa35370a12">td::td_api::callStateError::ID</a></div><div class="ttdeci">static const std::int32_t ID</div><div class="ttdoc">Identifier uniquely determining a type of the object.</div><div class="ttdef"><b>Definition:</b> td_api.h:3241</div></div>
 <div class="ttc" id="a_tl_object_8h_html_a5a2eff6f33cb7bbfacb71e4fe4ef3151"><div class="ttname"><a href="_tl_object_8h.html#a5a2eff6f33cb7bbfacb71e4fe4ef3151">td::tl_object_ptr</a></div><div class="ttdeci">tl::unique_ptr&lt; Type &gt; tl_object_ptr</div><div class="ttdef"><b>Definition:</b> TlObject.h:184</div></div>
+<div class="ttc" id="atd__api_8h_html_a79ab39931fd45d82e25fe81e8690bba0"><div class="ttname"><a href="td__api_8h.html#a79ab39931fd45d82e25fe81e8690bba0">td::td_api::array</a></div><div class="ttdeci">std::vector&lt; Type &gt; array</div><div class="ttdef"><b>Definition:</b> td_api.h:47</div></div>
+<div class="ttc" id="aclasstd_1_1td__api_1_1call_state_pending_html_a3d63b3c326424e6e802b5512023252ef"><div class="ttname"><a href="classtd_1_1td__api_1_1call_state_pending.html#a3d63b3c326424e6e802b5512023252ef">td::td_api::callStatePending::ID</a></div><div class="ttdeci">static const std::int32_t ID</div><div class="ttdoc">Identifier uniquely determining a type of the object.</div><div class="ttdef"><b>Definition:</b> td_api.h:3048</div></div>
+<div class="ttc" id="aclasstd_1_1td__api_1_1call_state_ready_html_a64bab89e282d5feef3e5f1f6c88be7a9"><div class="ttname"><a href="classtd_1_1td__api_1_1call_state_ready.html#a64bab89e282d5feef3e5f1f6c88be7a9">td::td_api::callStateReady::ID</a></div><div class="ttdeci">static const std::int32_t ID</div><div class="ttdoc">Identifier uniquely determining a type of the object.</div><div class="ttdef"><b>Definition:</b> td_api.h:3130</div></div>
+<div class="ttc" id="aclasstd_1_1td__api_1_1call_state_hanging_up_html_a424126e19aae11e20bc208806aad5737"><div class="ttname"><a href="classtd_1_1td__api_1_1call_state_hanging_up.html#a424126e19aae11e20bc208806aad5737">td::td_api::callStateHangingUp::ID</a></div><div class="ttdeci">static const std::int32_t ID</div><div class="ttdoc">Identifier uniquely determining a type of the object.</div><div class="ttdef"><b>Definition:</b> td_api.h:3159</div></div>
+<div class="ttc" id="aclasstd_1_1td__api_1_1call_state_discarded_html_a0fff403cfe503d109eea51e67a6a0887"><div class="ttname"><a href="classtd_1_1td__api_1_1call_state_discarded.html#a0fff403cfe503d109eea51e67a6a0887">td::td_api::callStateDiscarded::ID</a></div><div class="ttdeci">static const std::int32_t ID</div><div class="ttdoc">Identifier uniquely determining a type of the object.</div><div class="ttdef"><b>Definition:</b> td_api.h:3203</div></div>
+<div class="ttc" id="aclasstd_1_1td__api_1_1call_state_exchanging_keys_html_a4a70b52c0c8631f3430b6f178867f8cd"><div class="ttname"><a href="classtd_1_1td__api_1_1call_state_exchanging_keys.html#a4a70b52c0c8631f3430b6f178867f8cd">td::td_api::callStateExchangingKeys::ID</a></div><div class="ttdeci">static const std::int32_t ID</div><div class="ttdoc">Identifier uniquely determining a type of the object.</div><div class="ttdef"><b>Definition:</b> td_api.h:3077</div></div>
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
 Generated by&#160;<a href="http://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.8.20

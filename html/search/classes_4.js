@@ -1,5 +1,23 @@
 var searchData=
 [
-  ['tdcallback_73',['TdCallback',['../classtd_1_1_td_callback.html',1,'td']]],
-  ['tlobject_74',['TlObject',['../classtd_1_1_tl_object.html',1,'td']]]
+  ['editchatfilter_2705',['editChatFilter',['../classtd_1_1td__api_1_1edit_chat_filter.html',1,'td::td_api']]],
+  ['editcustomlanguagepackinfo_2706',['editCustomLanguagePackInfo',['../classtd_1_1td__api_1_1edit_custom_language_pack_info.html',1,'td::td_api']]],
+  ['editinlinemessagecaption_2707',['editInlineMessageCaption',['../classtd_1_1td__api_1_1edit_inline_message_caption.html',1,'td::td_api']]],
+  ['editinlinemessagelivelocation_2708',['editInlineMessageLiveLocation',['../classtd_1_1td__api_1_1edit_inline_message_live_location.html',1,'td::td_api']]],
+  ['editinlinemessagemedia_2709',['editInlineMessageMedia',['../classtd_1_1td__api_1_1edit_inline_message_media.html',1,'td::td_api']]],
+  ['editinlinemessagereplymarkup_2710',['editInlineMessageReplyMarkup',['../classtd_1_1td__api_1_1edit_inline_message_reply_markup.html',1,'td::td_api']]],
+  ['editinlinemessagetext_2711',['editInlineMessageText',['../classtd_1_1td__api_1_1edit_inline_message_text.html',1,'td::td_api']]],
+  ['editmessagecaption_2712',['editMessageCaption',['../classtd_1_1td__api_1_1edit_message_caption.html',1,'td::td_api']]],
+  ['editmessagelivelocation_2713',['editMessageLiveLocation',['../classtd_1_1td__api_1_1edit_message_live_location.html',1,'td::td_api']]],
+  ['editmessagemedia_2714',['editMessageMedia',['../classtd_1_1td__api_1_1edit_message_media.html',1,'td::td_api']]],
+  ['editmessagereplymarkup_2715',['editMessageReplyMarkup',['../classtd_1_1td__api_1_1edit_message_reply_markup.html',1,'td::td_api']]],
+  ['editmessageschedulingstate_2716',['editMessageSchedulingState',['../classtd_1_1td__api_1_1edit_message_scheduling_state.html',1,'td::td_api']]],
+  ['editmessagetext_2717',['editMessageText',['../classtd_1_1td__api_1_1edit_message_text.html',1,'td::td_api']]],
+  ['editproxy_2718',['editProxy',['../classtd_1_1td__api_1_1edit_proxy.html',1,'td::td_api']]],
+  ['emailaddressauthenticationcodeinfo_2719',['emailAddressAuthenticationCodeInfo',['../classtd_1_1td__api_1_1email_address_authentication_code_info.html',1,'td::td_api']]],
+  ['emojis_2720',['emojis',['../classtd_1_1td__api_1_1emojis.html',1,'td::td_api']]],
+  ['enableproxy_2721',['enableProxy',['../classtd_1_1td__api_1_1enable_proxy.html',1,'td::td_api']]],
+  ['encryptedcredentials_2722',['encryptedCredentials',['../classtd_1_1td__api_1_1encrypted_credentials.html',1,'td::td_api']]],
+  ['encryptedpassportelement_2723',['encryptedPassportElement',['../classtd_1_1td__api_1_1encrypted_passport_element.html',1,'td::td_api']]],
+  ['error_2724',['error',['../classtd_1_1td__api_1_1error.html',1,'td::td_api']]]
 ];

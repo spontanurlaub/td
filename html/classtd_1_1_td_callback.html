@@ -77,9 +77,9 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:af2f7ff17971f823b885fb92cf3cbdd2f"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1_td_callback.html#af2f7ff17971f823b885fb92cf3cbdd2f">on_result</a> (std::uint64_t id, td_api::object_ptr&lt; td_api::Object &gt; result)=0</td></tr>
+<tr class="memitem:af2f7ff17971f823b885fb92cf3cbdd2f"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1_td_callback.html#af2f7ff17971f823b885fb92cf3cbdd2f">on_result</a> (std::uint64_t id, <a class="el" href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">td_api::object_ptr</a>&lt; <a class="el" href="classtd_1_1td__api_1_1_object.html">td_api::Object</a> &gt; result)=0</td></tr>
 <tr class="separator:af2f7ff17971f823b885fb92cf3cbdd2f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1936499c5f0ce9eb6124964ebe897e8e"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1_td_callback.html#a1936499c5f0ce9eb6124964ebe897e8e">on_error</a> (std::uint64_t id, td_api::object_ptr&lt; td_api::error &gt; error)=0</td></tr>
+<tr class="memitem:a1936499c5f0ce9eb6124964ebe897e8e"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1_td_callback.html#a1936499c5f0ce9eb6124964ebe897e8e">on_error</a> (std::uint64_t id, <a class="el" href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">td_api::object_ptr</a>&lt; <a class="el" href="classtd_1_1td__api_1_1error.html">td_api::error</a> &gt; error)=0</td></tr>
 <tr class="separator:a1936499c5f0ce9eb6124964ebe897e8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad5fbbb911fbc603774fb4258c1d05d58"><td class="memItemLeft" align="right" valign="top">virtual&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1_td_callback.html#ad5fbbb911fbc603774fb4258c1d05d58">~TdCallback</a> ()=default</td></tr>
 <tr class="separator:ad5fbbb911fbc603774fb4258c1d05d58"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -132,7 +132,7 @@ Public Member Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">td_api::object_ptr&lt; td_api::error &gt;&#160;</td>
+          <td class="paramtype"><a class="el" href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">td_api::object_ptr</a>&lt; <a class="el" href="classtd_1_1td__api_1_1error.html">td_api::error</a> &gt;&#160;</td>
           <td class="paramname"><em>error</em>&#160;</td>
         </tr>
         <tr>
@@ -175,7 +175,7 @@ Public Member Functions</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">td_api::object_ptr&lt; td_api::Object &gt;&#160;</td>
+          <td class="paramtype"><a class="el" href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">td_api::object_ptr</a>&lt; <a class="el" href="classtd_1_1td__api_1_1_object.html">td_api::Object</a> &gt;&#160;</td>
           <td class="paramname"><em>result</em>&#160;</td>
         </tr>
         <tr>
@@ -190,7 +190,7 @@ Public Member Functions</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
-<p>This function is called for every answer to a request made to TDLib and for every incoming update of the type td_api::Update. </p><dl class="params"><dt>Parameters</dt><dd>
+<p>This function is called for every answer to a request made to TDLib and for every incoming update of the type <a class="el" href="classtd_1_1td__api_1_1_update.html">td_api::Update</a>. </p><dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">id</td><td>Request identifier or 0 for incoming updates. </td></tr>
     <tr><td class="paramname">result</td><td>Answer to the TDLib request or an incoming update. </td></tr>
