@@ -13,6 +13,7 @@ jobs:
         with:
           working-directory: 'docs/'
           doxyfile-path: 'Doxyfile'
+      - uses: actions/checkout@v2
       - name: apply custom css
         run: |
           cp doxygen.css docs/html/doxygen.css
