@@ -15,7 +15,7 @@ jobs:
           doxyfile-path: 'Doxyfile'
       - name: apply custom css
         run: |
-          cp ./doxygen.css ./docs/html/doxygen.css
+          cp doxygen.css docs/html/doxygen.css
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
