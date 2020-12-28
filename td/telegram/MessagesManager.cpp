@@ -6632,7 +6632,10 @@ bool MessagesManager::is_active_message_reply_info(DialogId dialog_id, const Mes
 
 bool MessagesManager::is_visible_message_reply_info(DialogId dialog_id, const Message *m) const {
   CHECK(m != nullptr);
-  if (!m->message_id.is_valid() || !m->message_id.is_server()) {
+  if (!m->message_id.is_valid()) {
+    return false;
+  }
+  if (!m->message_id.is_server() && !m->message_id.is_yet_unsent()) {
     return false;
   }
   if (is_broadcast_channel(dialog_id) && (m->had_reply_markup || m->reply_markup != nullptr)) {
@@ -9133,12 +9136,10 @@ void MessagesManager::on_get_history(DialogId dialog_id, MessageId from_message_
       set_dialog_last_new_message_id(
           d, last_added_message_id.is_valid() ? last_added_message_id : last_received_message_id, "on_get_history");
     }
-    if (last_added_message_id.is_valid()) {
-      if (last_added_message_id > d->last_message_id) {
-        CHECK(d->last_new_message_id.is_valid());
-        set_dialog_last_message_id(d, last_added_message_id, "on_get_history");
-        send_update_chat_last_message(d, "on_get_history");
-      }
+    if (last_added_message_id.is_valid() && last_added_message_id > d->last_message_id) {
+      CHECK(d->last_new_message_id.is_valid());
+      set_dialog_last_message_id(d, last_added_message_id, "on_get_history");
+      send_update_chat_last_message(d, "on_get_history");
     }
   }
 
@@ -13160,14 +13161,6 @@ FullMessageId MessagesManager::on_get_message(MessageInfo &&message_info, bool f
 
   CHECK(d != nullptr);
 
-  if (is_sent_message) {
-    try_add_active_live_location(dialog_id, m);
-
-    // add_message_to_dialog will not update counts, because need_update == false
-    update_message_count_by_index(d, +1, m);
-    update_reply_count_by_message(d, +1, m);
-  }
-
   auto pcc_it = pending_created_dialogs_.find(dialog_id);
   if (from_update && pcc_it != pending_created_dialogs_.end()) {
     pcc_it->second.set_value(Unit());
@@ -13177,6 +13170,18 @@ FullMessageId MessagesManager::on_get_message(MessageInfo &&message_info, bool f
 
   if (need_update) {
     send_update_new_message(d, m);
+  }
+
+  if (is_sent_message) {
+    try_add_active_live_location(dialog_id, m);
+
+    // add_message_to_dialog will not update counts, because need_update == false
+    update_message_count_by_index(d, +1, m);
+  }
+
+  if (is_sent_message || need_update) {
+    update_reply_count_by_message(d, +1, m);
+    update_forward_count(dialog_id, m);
   }
 
   if (dialog_id.get_type() == DialogType::Channel && !have_input_peer(dialog_id, AccessRights::Read)) {
@@ -16255,6 +16260,9 @@ Result<FullMessageId> MessagesManager::get_top_thread_full_message_id(DialogId d
     if (!is_visible_message_reply_info(dialog_id, m)) {
       return Status::Error(400, "Message has no comments");
     }
+    if (m->message_id.is_yet_unsent()) {
+      return Status::Error(400, "Message is not sent yet");
+    }
     return FullMessageId{DialogId(m->reply_info.channel_id), m->linked_top_thread_message_id};
   } else {
     if (!m->top_thread_message_id.is_valid()) {
@@ -16735,7 +16743,7 @@ Result<std::pair<string, bool>> MessagesManager::get_message_link(FullMessageId 
     return Status::Error(400, "Message not found");
   }
   if (m->message_id.is_yet_unsent()) {
-    return Status::Error(400, "Message is yet unsent");
+    return Status::Error(400, "Message is not sent yet");
   }
   if (m->message_id.is_scheduled()) {
     return Status::Error(400, "Message is scheduled");
@@ -16834,7 +16842,7 @@ string MessagesManager::get_message_embedding_code(FullMessageId full_message_id
     return {};
   }
   if (m->message_id.is_yet_unsent()) {
-    promise.set_error(Status::Error(400, "Message is yet unsent"));
+    promise.set_error(Status::Error(400, "Message is not sent yet"));
     return {};
   }
   if (m->message_id.is_scheduled()) {
@@ -28028,6 +28036,8 @@ FullMessageId MessagesManager::on_send_message_success(int64 random_id, MessageI
     send_update_chat_last_message(d, "on_send_message_success");
   }
   try_add_active_live_location(dialog_id, m);
+  update_reply_count_by_message(d, +1, m);
+  update_forward_count(dialog_id, m);
   being_readded_message_id_ = FullMessageId();
   return {dialog_id, new_message_id};
 }
@@ -31784,7 +31794,6 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
   }
   if (*need_update) {
     update_message_count_by_index(d, +1, message.get());
-    update_reply_count_by_message(d, +1, message.get());
   }
   if (auto_attach && message_id > d->last_message_id && message_id >= d->last_new_message_id) {
     set_dialog_last_message_id(d, message_id, "add_message_to_dialog");
@@ -31966,12 +31975,6 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
         set_dialog_reply_markup(d, MessageId());
       }
     }
-  }
-  if (!td_->auth_manager_->is_bot() && from_update && m->forward_info != nullptr &&
-      m->forward_info->sender_dialog_id.is_valid() && m->forward_info->message_id.is_valid() &&
-      (!is_discussion_message(dialog_id, m) || m->forward_info->sender_dialog_id != m->forward_info->from_dialog_id ||
-       m->forward_info->message_id != m->forward_info->from_message_id)) {
-    update_forward_count(m->forward_info->sender_dialog_id, m->forward_info->message_id, m->date);
   }
 
   return result_message;
@@ -35342,6 +35345,15 @@ void MessagesManager::update_top_dialogs(DialogId dialog_id, const Message *m) {
   }
   if (category != TopDialogCategory::Size) {
     on_dialog_used(category, dialog_id, m->date);
+  }
+}
+
+void MessagesManager::update_forward_count(DialogId dialog_id, const Message *m) {
+  if (!td_->auth_manager_->is_bot() && m->forward_info != nullptr && m->forward_info->sender_dialog_id.is_valid() &&
+      m->forward_info->message_id.is_valid() &&
+      (!is_discussion_message(dialog_id, m) || m->forward_info->sender_dialog_id != m->forward_info->from_dialog_id ||
+       m->forward_info->message_id != m->forward_info->from_message_id)) {
+    update_forward_count(m->forward_info->sender_dialog_id, m->forward_info->message_id, m->date);
   }
 }
 
