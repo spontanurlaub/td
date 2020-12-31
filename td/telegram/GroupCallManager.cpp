@@ -20,6 +20,7 @@
 
 #include "td/utils/buffer.h"
 #include "td/utils/JsonBuilder.h"
+#include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Random.h"
 
@@ -58,11 +59,17 @@ class CreateGroupCallQuery : public Td::ResultHandler {
     LOG(INFO) << "Receive result for CreateGroupCallQuery: " << to_string(ptr);
 
     auto group_call_ids = td->updates_manager_->get_update_new_group_call_ids(ptr.get());
-    if (group_call_ids.size() != 1) {
+    if (group_call_ids.empty()) {
       LOG(ERROR) << "Receive wrong CreateGroupCallQuery response " << to_string(ptr);
       return on_error(id, Status::Error(500, "Receive wrong response"));
     }
     auto group_call_id = group_call_ids[0];
+    for (auto other_group_call_id : group_call_ids) {
+      if (group_call_id != other_group_call_id) {
+        LOG(ERROR) << "Receive wrong CreateGroupCallQuery response " << to_string(ptr);
+        return on_error(id, Status::Error(500, "Receive wrong response"));
+      }
+    }
 
     td->updates_manager_->on_get_updates(
         std::move(ptr), PromiseCreator::lambda([promise = std::move(promise_), group_call_id](Unit) mutable {
