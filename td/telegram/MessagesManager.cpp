@@ -6143,6 +6143,23 @@ void MessagesManager::skip_old_pending_update(tl_object_ptr<telegram_api::Update
       << "Receive useless update " << oneline(to_string(update)) << " from " << source;
 }
 
+int32 MessagesManager::get_min_pending_pts() const {
+  int32 result = std::numeric_limits<int32>::max();
+  if (!pending_pts_updates_.empty()) {
+    auto pts = pending_pts_updates_.begin()->first;
+    if (pts < result) {
+      result = pts;
+    }
+  }
+  if (!postponed_pts_updates_.empty()) {
+    auto pts = postponed_pts_updates_.begin()->first;
+    if (pts < result) {
+      result = pts;
+    }
+  }
+  return result;
+}
+
 void MessagesManager::add_pending_update(tl_object_ptr<telegram_api::Update> &&update, int32 new_pts, int32 pts_count,
                                          bool force_apply, Promise<Unit> &&promise, const char *source) {
   // do not try to run getDifference from this function
@@ -6248,7 +6265,7 @@ void MessagesManager::add_pending_update(tl_object_ptr<telegram_api::Update> &&u
     }
   }
 
-  if (new_pts <= old_pts) {
+  if (new_pts <= old_pts || (old_pts >= 1 && new_pts > old_pts + 500000000)) {
     skip_old_pending_update(std::move(update), new_pts, old_pts, pts_count, source);
     return promise.set_value(Unit());
   }
@@ -8741,22 +8758,18 @@ void MessagesManager::after_get_difference() {
   CHECK(!td_->updates_manager_->running_get_difference());
 
   if (postponed_pts_updates_.size()) {
-    LOG(INFO) << "Begin to apply postponed pts updates";
-    auto old_pts = td_->updates_manager_->get_pts();
-    for (auto &update : postponed_pts_updates_) {
-      auto new_pts = update.second.pts;
-      if (new_pts <= old_pts) {
-        skip_old_pending_update(std::move(update.second.update), new_pts, old_pts, update.second.pts_count,
-                                "after get difference");
-        update.second.promise.set_value(Unit());
-      } else {
-        add_pending_update(std::move(update.second.update), update.second.pts, update.second.pts_count, false,
-                           std::move(update.second.promise), "after get difference");
-      }
+    auto postponed_updates = std::move(postponed_pts_updates_);
+    postponed_pts_updates_.clear();
+
+    LOG(INFO) << "Begin to apply " << postponed_updates.size() << " postponed pts updates";
+    for (auto &postponed_update : postponed_updates) {
+      auto &update = postponed_update.second;
+      add_pending_update(std::move(update.update), update.pts, update.pts_count, false, std::move(update.promise),
+                         "after get difference");
       CHECK(!td_->updates_manager_->running_get_difference());
     }
-    postponed_pts_updates_.clear();
-    LOG(INFO) << "Finish to apply postponed pts updates";
+    LOG(INFO) << "Finish to apply postponed pts updates, have " << postponed_pts_updates_.size()
+              << " left postponed updates";
   }
 
   running_get_difference_ = false;
