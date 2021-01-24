@@ -1703,6 +1703,9 @@ class MessagesManager : public Actor {
 
   DialogId get_my_dialog_id() const;
 
+  void on_resolve_secret_chat_message_via_bot_username(const string &via_bot_username, MessageInfo *message_info_ptr,
+                                                       Promise<Unit> &&promise);
+
   void add_secret_message(unique_ptr<PendingSecretMessage> pending_secret_message, Promise<Unit> lock_promise = Auto());
 
   void finish_add_secret_message(unique_ptr<PendingSecretMessage> pending_secret_message);
@@ -1717,6 +1720,8 @@ class MessagesManager : public Actor {
   std::pair<DialogId, unique_ptr<Message>> create_message(MessageInfo &&message_info, bool is_channel_message);
 
   MessageId find_old_message_id(DialogId dialog_id, MessageId message_id) const;
+
+  void delete_update_message_id(DialogId dialog_id, MessageId message_id);
 
   FullMessageId on_get_message(MessageInfo &&message_info, bool from_update, bool is_channel_message,
                                bool have_previous, bool have_next, const char *source);
