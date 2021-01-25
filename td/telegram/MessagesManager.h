@@ -477,10 +477,8 @@ class MessagesManager : public Actor {
   DialogParticipant get_dialog_participant(DialogId dialog_id, UserId user_id, int64 &random_id, bool force,
                                            Promise<Unit> &&promise);
 
-  std::pair<int32, vector<DialogParticipant>> search_dialog_participants(DialogId dialog_id, const string &query,
-                                                                         int32 limit, DialogParticipantsFilter filter,
-                                                                         int64 &random_id, bool without_bot_info,
-                                                                         bool force, Promise<Unit> &&promise);
+  void search_dialog_participants(DialogId dialog_id, const string &query, int32 limit, DialogParticipantsFilter filter,
+                                  bool without_bot_info, Promise<DialogParticipants> &&promise);
 
   vector<DialogAdministrator> get_dialog_administrators(DialogId dialog_id, int left_tries, Promise<Unit> &&promise);
 
@@ -750,7 +748,7 @@ class MessagesManager : public Actor {
 
   bool is_update_about_username_change_received(DialogId dialog_id) const;
 
-  void on_dialog_bots_updated(DialogId dialog_id, vector<UserId> bot_user_ids);
+  void on_dialog_bots_updated(DialogId dialog_id, vector<UserId> bot_user_ids, bool from_database);
 
   void on_dialog_photo_updated(DialogId dialog_id);
   void on_dialog_title_updated(DialogId dialog_id);
@@ -2515,9 +2513,8 @@ class MessagesManager : public Actor {
   DialogFolder *get_dialog_folder(FolderId folder_id);
   const DialogFolder *get_dialog_folder(FolderId folder_id) const;
 
-  std::pair<int32, vector<DialogParticipant>> search_private_chat_participants(UserId my_user_id, UserId peer_user_id,
-                                                                               const string &query, int32 limit,
-                                                                               DialogParticipantsFilter filter) const;
+  DialogParticipants search_private_chat_participants(UserId my_user_id, UserId peer_user_id, const string &query,
+                                                      int32 limit, DialogParticipantsFilter filter) const;
 
   static unique_ptr<Message> *treap_find_message(unique_ptr<Message> *v, MessageId message_id);
   static const unique_ptr<Message> *treap_find_message(const unique_ptr<Message> *v, MessageId message_id);
