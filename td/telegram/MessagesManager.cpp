@@ -1085,7 +1085,7 @@ class InitHistoryImportQuery : public Td::ResultHandler {
   }
 
   void on_error(uint64 id, Status status) override {
-    if (!td->auth_manager_->is_bot() && FileReferenceManager::is_file_reference_error(status)) {
+    if (FileReferenceManager::is_file_reference_error(status)) {
       LOG(ERROR) << "Receive file reference error " << status;
     }
     if (begins_with(status.message(), "FILE_PART_") && ends_with(status.message(), "_MISSING")) {
@@ -10752,13 +10752,16 @@ void MessagesManager::unload_dialog(DialogId dialog_id) {
   if (G()->close_flag()) {
     return;
   }
-  if (!is_message_unload_enabled()) {
-    // just in case
-    return;
-  }
 
   Dialog *d = get_dialog(dialog_id);
   CHECK(d != nullptr);
+  CHECK(d->has_unload_timeout);
+
+  if (!is_message_unload_enabled()) {
+    // just in case
+    d->has_unload_timeout = false;
+    return;
+  }
 
   vector<MessageId> to_unload_message_ids;
   int32 left_to_unload = 0;
@@ -10784,6 +10787,8 @@ void MessagesManager::unload_dialog(DialogId dialog_id) {
   if (left_to_unload > 0) {
     LOG(DEBUG) << "Need to unload " << left_to_unload << " messages more in " << dialog_id;
     pending_unload_dialog_timeout_.add_timeout_in(d->dialog_id.get(), get_unload_dialog_delay());
+  } else {
+    d->has_unload_timeout = false;
   }
 }
 
@@ -19397,8 +19402,11 @@ void MessagesManager::open_dialog(Dialog *d) {
     }
   }
 
-  LOG(INFO) << "Cancel unload timeout for " << dialog_id;
-  pending_unload_dialog_timeout_.cancel_timeout(dialog_id.get());
+  if (d->has_unload_timeout) {
+    LOG(INFO) << "Cancel unload timeout for " << dialog_id;
+    pending_unload_dialog_timeout_.cancel_timeout(dialog_id.get());
+    d->has_unload_timeout = false;
+  }
 
   if (d->new_secret_chat_notification_id.is_valid()) {
     remove_new_secret_chat_notification(d, true);
@@ -19500,6 +19508,8 @@ void MessagesManager::close_dialog(Dialog *d) {
   }
 
   if (is_message_unload_enabled()) {
+    CHECK(!d->has_unload_timeout);
+    d->has_unload_timeout = true;
     pending_unload_dialog_timeout_.set_timeout_in(dialog_id.get(), get_unload_dialog_delay());
   }
 
@@ -21204,6 +21214,10 @@ void MessagesManager::on_message_live_location_viewed_on_server(int64 task_id) {
 }
 
 FileSourceId MessagesManager::get_message_file_source_id(FullMessageId full_message_id) {
+  if (td_->auth_manager_->is_bot()) {
+    return FileSourceId();
+  }
+
   auto dialog_id = full_message_id.get_dialog_id();
   auto message_id = full_message_id.get_message_id();
   if (!dialog_id.is_valid() || !(message_id.is_valid() || message_id.is_valid_scheduled()) ||
@@ -21219,6 +21233,10 @@ FileSourceId MessagesManager::get_message_file_source_id(FullMessageId full_mess
 }
 
 void MessagesManager::add_message_file_sources(DialogId dialog_id, const Message *m) {
+  if (td_->auth_manager_->is_bot()) {
+    return;
+  }
+
   if (dialog_id.get_type() != DialogType::SecretChat && m->is_content_secret) {
     // return;
   }
@@ -21238,6 +21256,10 @@ void MessagesManager::add_message_file_sources(DialogId dialog_id, const Message
 }
 
 void MessagesManager::remove_message_file_sources(DialogId dialog_id, const Message *m) {
+  if (td_->auth_manager_->is_bot()) {
+    return;
+  }
+
   auto file_ids = get_message_content_file_ids(m->content.get(), td_);
   if (file_ids.empty()) {
     return;
@@ -29506,7 +29528,6 @@ void MessagesManager::on_update_dialog_group_call(DialogId dialog_id, bool has_a
     is_group_call_empty = false;
   }
   if (d->has_active_group_call == has_active_group_call && d->is_group_call_empty == is_group_call_empty) {
-    LOG(INFO) << "Nothing changed in " << dialog_id;
     return;
   }
 
@@ -31783,9 +31804,10 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
     on_dialog_updated(dialog_id, "drop have_full_history");
   }
 
-  if (!d->is_opened && d->messages != nullptr && is_message_unload_enabled()) {
+  if (!d->is_opened && d->messages != nullptr && is_message_unload_enabled() && !d->has_unload_timeout) {
     LOG(INFO) << "Schedule unload of " << dialog_id;
     pending_unload_dialog_timeout_.add_timeout_in(dialog_id.get(), get_unload_dialog_delay());
+    d->has_unload_timeout = true;
   }
 
   if (message->ttl > 0 && message->ttl_expires_at != 0) {
