@@ -123,7 +123,7 @@ Public Attributes</h2></td></tr>
 <tr class="separator:a927e3e0c95acd7eb0d9fa2976e8ef758"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a22b0def442f648e464134a7b23263fe8"><td class="memItemLeft" align="right" valign="top"><a id="a22b0def442f648e464134a7b23263fe8"></a>
 <a class="el" href="td__api_8h.html#a6648f1a1bf445e248501bca41c087227">string</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1td__api_1_1basic_group_full_info.html#a22b0def442f648e464134a7b23263fe8">description_</a></td></tr>
-<tr class="memdesc:a22b0def442f648e464134a7b23263fe8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Group description. <br /></td></tr>
+<tr class="memdesc:a22b0def442f648e464134a7b23263fe8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Group description. Updated only after the basic group is opened. <br /></td></tr>
 <tr class="separator:a22b0def442f648e464134a7b23263fe8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6c67e08d04611016ee594f889c4314eb"><td class="memItemLeft" align="right" valign="top"><a id="a6c67e08d04611016ee594f889c4314eb"></a>
 <a class="el" href="td__api_8h.html#a022dcaf21a8397e0976d79ec82366e53">int32</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1td__api_1_1basic_group_full_info.html#a6c67e08d04611016ee594f889c4314eb">creator_user_id_</a></td></tr>
@@ -135,7 +135,7 @@ Public Attributes</h2></td></tr>
 <tr class="separator:a46ce6a4f20446490b36c1b463fe8c045"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a115d0af89525bd288c980670c0e10199"><td class="memItemLeft" align="right" valign="top"><a id="a115d0af89525bd288c980670c0e10199"></a>
 <a class="el" href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">object_ptr</a>&lt; <a class="el" href="classtd_1_1td__api_1_1chat_invite_link.html">chatInviteLink</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1td__api_1_1basic_group_full_info.html#a115d0af89525bd288c980670c0e10199">invite_link_</a></td></tr>
-<tr class="memdesc:a115d0af89525bd288c980670c0e10199"><td class="mdescLeft">&#160;</td><td class="mdescRight">Permanent invite link for this group; only for the group creator. <br /></td></tr>
+<tr class="memdesc:a115d0af89525bd288c980670c0e10199"><td class="mdescLeft">&#160;</td><td class="mdescRight">Permanent invite link for this group; may be null. For chat administrators with can_invite_users right only. Updated only after the basic group is opened. <br /></td></tr>
 <tr class="separator:a115d0af89525bd288c980670c0e10199"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-static-attribs"></a>
@@ -213,10 +213,10 @@ static const std::int32_t&#160;</td><td class="memItemRight" valign="bottom"><a 
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">photo_</td><td>Chat photo; may be null. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">description_</td><td>Group description. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">description_</td><td>Group description. Updated only after the basic group is opened. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">creator_user_id_</td><td>User identifier of the creator of the group; 0 if unknown. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">members_</td><td>Group members. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">invite_link_</td><td>Permanent invite link for this group; only for the group creator. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">invite_link_</td><td>Permanent invite link for this group; may be null. For chat administrators with can_invite_users right only. Updated only after the basic group is opened. </td></tr>
   </table>
   </dd>
 </dl>

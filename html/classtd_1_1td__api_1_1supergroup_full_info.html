@@ -187,7 +187,7 @@ bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr class="separator:ad830d7379f366c560c76ca4742b02803"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a229ad8b46e00f5a396c2e986a1c19017"><td class="memItemLeft" align="right" valign="top"><a id="a229ad8b46e00f5a396c2e986a1c19017"></a>
 <a class="el" href="td__api_8h.html#a12722e0b9a9a350d15997d3bb3cb61d4">object_ptr</a>&lt; <a class="el" href="classtd_1_1td__api_1_1chat_invite_link.html">chatInviteLink</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1td__api_1_1supergroup_full_info.html#a229ad8b46e00f5a396c2e986a1c19017">invite_link_</a></td></tr>
-<tr class="memdesc:a229ad8b46e00f5a396c2e986a1c19017"><td class="mdescLeft">&#160;</td><td class="mdescRight">Permanent invite link for this chat; for chat administrators with can_invite_users right only. <br /></td></tr>
+<tr class="memdesc:a229ad8b46e00f5a396c2e986a1c19017"><td class="mdescLeft">&#160;</td><td class="mdescRight">Permanent invite link for this chat; may be null. For chat administrators with can_invite_users right only. <br /></td></tr>
 <tr class="separator:a229ad8b46e00f5a396c2e986a1c19017"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab455f22fe5c88901aa66c2efc5526b0a"><td class="memItemLeft" align="right" valign="top"><a id="ab455f22fe5c88901aa66c2efc5526b0a"></a>
 <a class="el" href="td__api_8h.html#a022dcaf21a8397e0976d79ec82366e53">int32</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classtd_1_1td__api_1_1supergroup_full_info.html#ab455f22fe5c88901aa66c2efc5526b0a">upgraded_from_basic_group_id_</a></td></tr>
@@ -379,7 +379,7 @@ static const std::int32_t&#160;</td><td class="memItemRight" valign="bottom"><a 
     <tr><td class="paramdir">[in]</td><td class="paramname">is_all_history_available_</td><td>True, if new chat members will have access to old messages. In public or discussion groups and both public and private channels, old messages are always available, so this option affects only private supergroups without a linked chat. The value of this field is only available for chat administrators. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">sticker_set_id_</td><td>Identifier of the supergroup sticker set; 0 if none. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">location_</td><td>Location to which the supergroup is connected; may be null. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">invite_link_</td><td>Permanent invite link for this chat; for chat administrators with can_invite_users right only. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">invite_link_</td><td>Permanent invite link for this chat; may be null. For chat administrators with can_invite_users right only. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">upgraded_from_basic_group_id_</td><td>Identifier of the basic group from which supergroup was upgraded; 0 if none. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">upgraded_from_max_message_id_</td><td>Identifier of the last message in the basic group from which supergroup was upgraded; 0 if none. </td></tr>
   </table>
