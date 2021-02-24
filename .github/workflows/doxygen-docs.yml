@@ -11,6 +11,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Build tdlib
         run: |
+          sudo apt-get update
           sudo apt-get install make git zlib1g-dev libssl-dev gperf php-cli cmake g++
           
           rm -rf build
