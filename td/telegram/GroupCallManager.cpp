@@ -209,8 +209,10 @@ class JoinGroupCallQuery : public Td::ResultHandler {
       return on_error(id, result_ptr.move_as_error());
     }
 
-    td->group_call_manager_->process_join_group_call_response(input_group_call_id_, generation_,
-                                                              result_ptr.move_as_ok(), std::move(promise_));
+    auto ptr = result_ptr.move_as_ok();
+    LOG(INFO) << "Receive result for JoinGroupCallQuery with generation " << generation_ << ": " << to_string(ptr);
+    td->group_call_manager_->process_join_group_call_response(input_group_call_id_, generation_, std::move(ptr),
+                                                              std::move(promise_));
   }
 
   void on_error(uint64 id, Status status) override {
@@ -498,7 +500,8 @@ void GroupCallManager::on_check_group_call_is_joined_timeout(GroupCallId group_c
 
   auto *group_call = get_group_call(input_group_call_id);
   CHECK(group_call != nullptr && group_call->is_inited);
-  if (!group_call->is_joined || check_group_call_is_joined_timeout_.has_timeout(group_call_id.get())) {
+  if (!group_call->is_joined || pending_join_requests_.count(input_group_call_id) != 0 ||
+      check_group_call_is_joined_timeout_.has_timeout(group_call_id.get())) {
     return;
   }
 
@@ -844,7 +847,8 @@ void GroupCallManager::finish_check_group_call_is_joined(InputGroupCallId input_
 
   auto *group_call = get_group_call(input_group_call_id);
   CHECK(group_call != nullptr && group_call->is_inited);
-  if (!group_call->is_joined || check_group_call_is_joined_timeout_.has_timeout(group_call->group_call_id.get()) ||
+  if (!group_call->is_joined || pending_join_requests_.count(input_group_call_id) != 0 ||
+      check_group_call_is_joined_timeout_.has_timeout(group_call->group_call_id.get()) ||
       group_call->audio_source != audio_source) {
     return;
   }
@@ -1470,10 +1474,6 @@ void GroupCallManager::join_group_call(GroupCallId group_call_id,
 
   auto *group_call = get_group_call(input_group_call_id);
   CHECK(group_call != nullptr);
-  if (group_call->is_joined && !group_call->is_being_left) {
-    CHECK(group_call->is_inited);
-    return promise.set_error(Status::Error(400, "Group call is already joined"));
-  }
   if (group_call->is_inited && !group_call->is_active) {
     return promise.set_error(Status::Error(400, "Group call is finished"));
   }
@@ -1642,7 +1642,6 @@ void GroupCallManager::process_join_group_call_response(InputGroupCallId input_g
     return;
   }
 
-  LOG(INFO) << "Receive result for JoinGroupCallQuery: " << to_string(updates);
   td_->updates_manager_->on_get_updates(std::move(updates),
                                         PromiseCreator::lambda([promise = std::move(promise)](Unit) mutable {
                                           promise.set_error(Status::Error(500, "Wrong join response received"));
