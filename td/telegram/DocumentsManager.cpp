@@ -167,9 +167,6 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
       default_extension = Slice("webp");
       owner_dialog_id = DialogId();
       file_name.clear();
-      if (td_->stickers_manager_->has_webp_thumbnail(sticker) && remote_document.secret_file == nullptr) {
-        thumbnail_format = PhotoFormat::Webp;
-      }
     } else if (video != nullptr || default_document_type == Document::Type::Video ||
                default_document_type == Document::Type::VideoNote) {
       bool is_video_note = default_document_type == Document::Type::VideoNote;
@@ -252,6 +249,9 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
     mime_type = std::move(document->mime_type_);
     file_reference = document->file_reference_.as_slice().str();
 
+    if (document_type == Document::Type::Sticker && StickersManager::has_webp_thumbnail(document->thumbs_)) {
+      thumbnail_format = PhotoFormat::Webp;
+    }
     fix_animated_sticker_type();
 
     if (owner_dialog_id.get_type() == DialogType::SecretChat) {
@@ -265,9 +265,9 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
 
     if (document_type != Document::Type::VoiceNote) {
       for (auto &thumb : document->thumbs_) {
-        auto photo_size = get_photo_size(td_->file_manager_.get(), {FileType::Thumbnail, 0}, id, access_hash,
-                                         file_reference, DcId::create(dc_id), owner_dialog_id, std::move(thumb),
-                                         thumbnail_format, document_type != Document::Type::Sticker);
+        auto photo_size =
+            get_photo_size(td_->file_manager_.get(), {FileType::Thumbnail, 0}, id, access_hash, file_reference,
+                           DcId::create(dc_id), owner_dialog_id, std::move(thumb), thumbnail_format);
         if (photo_size.get_offset() == 0) {
           if (!thumbnail.file_id.is_valid()) {
             thumbnail = std::move(photo_size.get<0>());
