@@ -22,6 +22,7 @@
 #include "td/telegram/files/FileType.h"
 #include "td/telegram/FolderId.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/GroupCallManager.h"
 #include "td/telegram/InlineQueriesManager.h"
 #include "td/telegram/InputGroupCallId.h"
 #include "td/telegram/logevent/LogEvent.h"
@@ -3466,7 +3467,7 @@ UserId ContactsManager::load_my_id() {
       return my_id;
     }
 
-    LOG(ERROR) << "Wrong my id = \"" << id_string << "\" stored in database";
+    LOG(ERROR) << "Wrong my ID = \"" << id_string << "\" stored in database";
   }
   return UserId();
 }
@@ -4769,6 +4770,43 @@ RestrictedRights ContactsManager::get_secret_chat_default_permissions(SecretChat
   return RestrictedRights(true, true, true, true, true, true, true, true, false, false, false);
 }
 
+string ContactsManager::get_dialog_about(DialogId dialog_id) {
+  switch (dialog_id.get_type()) {
+    case DialogType::User: {
+      auto user_full = get_user_full_force(dialog_id.get_user_id());
+      if (user_full != nullptr) {
+        return user_full->about;
+      }
+      break;
+    }
+    case DialogType::Chat: {
+      auto chat_full = get_chat_full_force(dialog_id.get_chat_id(), "get_dialog_about");
+      if (chat_full != nullptr) {
+        return chat_full->description;
+      }
+      break;
+    }
+    case DialogType::Channel: {
+      auto channel_full = get_channel_full_force(dialog_id.get_channel_id(), "get_dialog_about");
+      if (channel_full != nullptr) {
+        return channel_full->description;
+      }
+      break;
+    }
+    case DialogType::SecretChat: {
+      auto user_full = get_user_full_force(get_secret_chat_user_id(dialog_id.get_secret_chat_id()));
+      if (user_full != nullptr) {
+        return user_full->about;
+      }
+      break;
+    }
+    case DialogType::None:
+    default:
+      UNREACHABLE();
+  }
+  return string();
+}
+
 int32 ContactsManager::get_secret_chat_date(SecretChatId secret_chat_id) const {
   auto c = get_secret_chat(secret_chat_id);
   if (c == nullptr) {
@@ -4853,7 +4891,7 @@ FolderId ContactsManager::get_secret_chat_initial_folder_id(SecretChatId secret_
 }
 
 UserId ContactsManager::get_my_id() const {
-  LOG_IF(ERROR, !my_id_.is_valid()) << "Wrong or unknown my id returned";
+  LOG_IF(ERROR, !my_id_.is_valid()) << "Wrong or unknown my ID returned";
   return my_id_;
 }
 
@@ -4863,7 +4901,7 @@ void ContactsManager::set_my_id(UserId my_id) {
     LOG(ERROR) << "Already know that me is " << my_old_id << " but received userSelf with " << my_id;
   }
   if (!my_id.is_valid()) {
-    LOG(ERROR) << "Receive invalid my id " << my_id;
+    LOG(ERROR) << "Receive invalid my ID " << my_id;
     return;
   }
   if (my_old_id != my_id) {
@@ -6106,6 +6144,7 @@ void ContactsManager::on_update_profile_success(int32 flags, const string &first
       user_full->about = about;
       user_full->is_changed = true;
       update_user_full(user_full, my_user_id);
+      td_->group_call_manager_->on_update_dialog_about(DialogId(my_user_id), user_full->about, true);
     }
   }
 }
@@ -9212,6 +9251,8 @@ void ContactsManager::on_load_user_full_from_database(UserId user_id, string val
     register_user_photo(u, user_id, user_full->photo);
   }
 
+  td_->group_call_manager_->on_update_dialog_about(DialogId(user_id), user_full->about, false);
+
   update_user_full(user_full, user_id, true);
 
   if (is_user_deleted(user_id)) {
@@ -9401,6 +9442,9 @@ void ContactsManager::on_load_chat_full_from_database(ChatId chat_id, string val
       reload_chat_full(chat_id, Auto());
     }
   }
+
+  td_->group_call_manager_->on_update_dialog_about(DialogId(chat_id), chat_full->description, false);
+
   on_update_chat_full_photo(chat_full, chat_id, std::move(chat_full->photo));
 
   update_chat_full(chat_full, chat_id, true);
@@ -9510,6 +9554,8 @@ void ContactsManager::on_load_channel_full_from_database(ChannelId channel_id, s
       channel_full->expires_at = 0.0;
     }
   }
+
+  td_->group_call_manager_->on_update_dialog_about(DialogId(channel_id), channel_full->description, false);
 
   td_->messages_manager_->on_dialog_bots_updated(DialogId(channel_id), channel_full->bot_user_ids, true);
 
@@ -10042,13 +10088,17 @@ void ContactsManager::on_get_user_full(tl_object_ptr<telegram_api::userFull> &&u
   bool supports_video_calls = user->video_calls_available_ && !user->phone_calls_private_;
   bool has_private_calls = user->phone_calls_private_;
   if (user_full->can_be_called != can_be_called || user_full->supports_video_calls != supports_video_calls ||
-      user_full->has_private_calls != has_private_calls || user_full->about != user->about_) {
+      user_full->has_private_calls != has_private_calls) {
     user_full->can_be_called = can_be_called;
     user_full->supports_video_calls = supports_video_calls;
     user_full->has_private_calls = has_private_calls;
-    user_full->about = std::move(user->about_);
 
     user_full->is_changed = true;
+  }
+  if (user_full->about != user->about_) {
+    user_full->about = std::move(user->about_);
+    user_full->is_changed = true;
+    td_->group_call_manager_->on_update_dialog_about(DialogId(user_id), user_full->about, true);
   }
 
   auto photo = get_photo(td_->file_manager_.get(), std::move(user->profile_photo_), DialogId(user_id));
@@ -10277,6 +10327,16 @@ void ContactsManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&c
       td_->messages_manager_->on_update_dialog_group_call_id(DialogId(chat_id), input_group_call_id);
     }
     {
+      DialogId default_join_group_call_as_dialog_id;
+      if (chat->groupcall_default_join_as_ != nullptr) {
+        default_join_group_call_as_dialog_id = DialogId(chat->groupcall_default_join_as_);
+      }
+      // use send closure later to not crete synchronously default_join_group_call_as_dialog_id
+      send_closure_later(G()->messages_manager(),
+                         &MessagesManager::on_update_dialog_default_join_group_call_as_dialog_id, DialogId(chat_id),
+                         default_join_group_call_as_dialog_id, false);
+    }
+    {
       MessageTtlSetting message_ttl_setting;
       if ((chat->flags_ & CHAT_FULL_FLAG_HAS_MESSAGE_TTL) != 0) {
         message_ttl_setting = MessageTtlSetting(chat->ttl_period_);
@@ -10298,6 +10358,7 @@ void ContactsManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&c
     if (chat_full->description != chat->about_) {
       chat_full->description = std::move(chat->about_);
       chat_full->is_changed = true;
+      td_->group_call_manager_->on_update_dialog_about(DialogId(chat_id), chat_full->description, true);
     }
     if (chat_full->can_set_username != chat->can_set_username_) {
       chat_full->can_set_username = chat->can_set_username_;
@@ -10391,7 +10452,7 @@ void ContactsManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&c
 
     channel_full->repair_request_version = 0;
     channel_full->expires_at = Time::now() + CHANNEL_FULL_EXPIRE_TIME;
-    if (channel_full->description != channel->about_ || channel_full->participant_count != participant_count ||
+    if (channel_full->participant_count != participant_count ||
         channel_full->administrator_count != administrator_count ||
         channel_full->restricted_count != restricted_count || channel_full->banned_count != banned_count ||
         channel_full->can_get_participants != can_get_participants ||
@@ -10401,7 +10462,6 @@ void ContactsManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&c
         channel_full->can_view_statistics != can_view_statistics || channel_full->stats_dc_id != stats_dc_id ||
         channel_full->sticker_set_id != sticker_set_id ||
         channel_full->is_all_history_available != is_all_history_available) {
-      channel_full->description = std::move(channel->about_);
       channel_full->participant_count = participant_count;
       channel_full->administrator_count = administrator_count;
       channel_full->restricted_count = restricted_count;
@@ -10417,6 +10477,12 @@ void ContactsManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&c
 
       channel_full->is_changed = true;
     }
+    if (channel_full->description != channel->about_) {
+      channel_full->description = std::move(channel->about_);
+      channel_full->is_changed = true;
+      td_->group_call_manager_->on_update_dialog_about(DialogId(channel_id), channel_full->description, true);
+    }
+
     if (have_participant_count && c->participant_count != participant_count) {
       c->participant_count = participant_count;
       c->is_changed = true;
@@ -10466,12 +10532,18 @@ void ContactsManager::on_get_chat_full(tl_object_ptr<telegram_api::ChatFull> &&c
       InputGroupCallId input_group_call_id;
       if (channel->call_ != nullptr) {
         input_group_call_id = InputGroupCallId(channel->call_);
-        if (input_group_call_id.is_valid() && !c->is_megagroup) {
-          LOG(ERROR) << "Receive " << input_group_call_id << " in " << channel_id;
-          input_group_call_id = InputGroupCallId();
-        }
       }
       td_->messages_manager_->on_update_dialog_group_call_id(DialogId(channel_id), input_group_call_id);
+    }
+    {
+      DialogId default_join_group_call_as_dialog_id;
+      if (channel->groupcall_default_join_as_ != nullptr) {
+        default_join_group_call_as_dialog_id = DialogId(channel->groupcall_default_join_as_);
+      }
+      // use send closure later to not crete synchronously default_join_group_call_as_dialog_id
+      send_closure_later(G()->messages_manager(),
+                         &MessagesManager::on_update_dialog_default_join_group_call_as_dialog_id, DialogId(channel_id),
+                         default_join_group_call_as_dialog_id, false);
     }
 
     if (participant_count >= 190) {
@@ -11186,6 +11258,7 @@ void ContactsManager::drop_user_full(UserId user_id) {
   user_full->is_changed = true;
 
   update_user_full(user_full, user_id);
+  td_->group_call_manager_->on_update_dialog_about(DialogId(user_id), user_full->about, true);
 }
 
 void ContactsManager::update_user_online_member_count(User *u) {
@@ -12716,6 +12789,7 @@ void ContactsManager::on_update_chat_description(ChatId chat_id, string &&descri
     chat_full->description = std::move(description);
     chat_full->is_changed = true;
     update_chat_full(chat_full, chat_id);
+    td_->group_call_manager_->on_update_dialog_about(DialogId(chat_id), chat_full->description, true);
   }
 }
 
@@ -12916,6 +12990,7 @@ void ContactsManager::on_update_channel_description(ChannelId channel_id, string
     channel_full->description = std::move(description);
     channel_full->is_changed = true;
     update_channel_full(channel_full, channel_id);
+    td_->group_call_manager_->on_update_dialog_about(DialogId(channel_id), channel_full->description, true);
   }
 }
 
