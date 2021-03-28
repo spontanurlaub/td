@@ -7247,7 +7247,7 @@ void MessagesManager::on_user_dialog_action(DialogId dialog_id, MessageId top_th
     const Dialog *d = get_dialog_force(dialog_id);
     if (d != nullptr && d->active_group_call_id.is_valid()) {
       auto group_call_id = td_->group_call_manager_->get_group_call_id(d->active_group_call_id, dialog_id);
-      td_->group_call_manager_->on_user_speaking_in_group_call(group_call_id, dialog_id, date);
+      td_->group_call_manager_->on_user_speaking_in_group_call(group_call_id, typing_dialog_id, date);
     }
     return;
   }
@@ -33744,7 +33744,8 @@ void MessagesManager::force_create_dialog(DialogId dialog_id, const char *source
     d = add_dialog(dialog_id);
     update_dialog_pos(d, "force_create_dialog");
 
-    if (dialog_id.get_type() == DialogType::SecretChat && !d->notification_settings.is_synchronized) {
+    if (dialog_id.get_type() == DialogType::SecretChat && !d->notification_settings.is_synchronized &&
+        td_->contacts_manager_->get_secret_chat_state(dialog_id.get_secret_chat_id()) != SecretChatState::Closed) {
       // secret chat is being created
       // let's copy notification settings from main chat if available
       VLOG(notifications) << "Create new secret " << dialog_id << " from " << source;
@@ -34960,7 +34961,7 @@ unique_ptr<MessagesManager::Dialog> MessagesManager::parse_dialog(DialogId dialo
   Dependencies dependencies;
   add_dialog_dependencies(dependencies, dialog_id);
   if (d->default_join_group_call_as_dialog_id != dialog_id) {
-    add_dialog_and_dependencies(dependencies, d->default_join_group_call_as_dialog_id);
+    add_message_sender_dependencies(dependencies, d->default_join_group_call_as_dialog_id);
   }
   if (d->messages != nullptr) {
     add_message_dependencies(dependencies, dialog_id, d->messages.get());
