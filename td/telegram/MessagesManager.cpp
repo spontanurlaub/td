@@ -19334,8 +19334,8 @@ void MessagesManager::create_new_secret_chat(UserId user_id, Promise<SecretChatI
   }
   auto user = move_tl_object_as<telegram_api::inputUser>(user_base);
 
-  send_closure(G()->secret_chats_manager(), &SecretChatsManager::create_chat, user->user_id_, user->access_hash_,
-               std::move(promise));
+  send_closure(G()->secret_chats_manager(), &SecretChatsManager::create_chat, UserId(user->user_id_),
+               user->access_hash_, std::move(promise));
 }
 
 DialogId MessagesManager::migrate_dialog_to_megagroup(DialogId dialog_id, Promise<Unit> &&promise) {
@@ -31854,7 +31854,7 @@ MessagesManager::Message *MessagesManager::on_get_message_from_database(DialogId
 
   Dependencies dependencies;
   add_message_dependencies(dependencies, d->dialog_id, m.get());
-  resolve_dependencies_force(td_, dependencies, "get_message");
+  resolve_dependencies_force(td_, dependencies, "on_get_message_from_database");
 
   m->have_previous = false;
   m->have_next = false;
@@ -33851,9 +33851,9 @@ MessagesManager::Dialog *MessagesManager::add_new_dialog(unique_ptr<Dialog> &&d,
       break;
     }
     case DialogType::SecretChat:
-      if (!d->last_new_message_id.is_valid()) {
+      if (d->last_new_message_id.get() <= MessageId::min().get()) {
         LOG(INFO) << "Set " << d->dialog_id << " last new message in add_new_dialog";
-        d->last_new_message_id = MessageId::min();
+        d->last_new_message_id = MessageId::min().get_next_message_id(MessageType::Local);
       }
 
       if (!d->notification_settings.is_secret_chat_show_preview_fixed) {
@@ -34558,7 +34558,8 @@ bool MessagesManager::set_dialog_order(Dialog *d, int64 new_order, bool need_sen
   }
 
   auto folder_ptr = get_dialog_folder(d->folder_id);
-  CHECK(folder_ptr != nullptr);
+  LOG_CHECK(folder_ptr != nullptr) << dialog_id << ' ' << d->folder_id << ' ' << is_loaded_from_database << ' '
+                                   << source;
   auto &folder = *folder_ptr;
   if (old_date == new_date) {
     if (new_order == DEFAULT_ORDER) {
@@ -35978,16 +35979,16 @@ void MessagesManager::speculatively_update_channel_participants(DialogId dialog_
   bool by_me = m->sender_user_id == my_user_id;
   switch (m->content->get_type()) {
     case MessageContentType::ChatAddUsers:
-      td_->contacts_manager_->speculative_add_channel_participants(
-          channel_id, get_message_content_added_user_ids(m->content.get()), m->sender_user_id, m->date, by_me);
+      send_closure_later(G()->contacts_manager(), &ContactsManager::speculative_add_channel_participants, channel_id,
+                         get_message_content_added_user_ids(m->content.get()), m->sender_user_id, m->date, by_me);
       break;
     case MessageContentType::ChatJoinedByLink:
-      td_->contacts_manager_->speculative_add_channel_participants(channel_id, {m->sender_user_id}, m->sender_user_id,
-                                                                   m->date, by_me);
+      send_closure_later(G()->contacts_manager(), &ContactsManager::speculative_add_channel_participants, channel_id,
+                         vector<UserId>{m->sender_user_id}, m->sender_user_id, m->date, by_me);
       break;
     case MessageContentType::ChatDeleteUser:
-      td_->contacts_manager_->speculative_delete_channel_participant(
-          channel_id, get_message_content_deleted_user_id(m->content.get()), by_me);
+      send_closure_later(G()->contacts_manager(), &ContactsManager::speculative_delete_channel_participant, channel_id,
+                         get_message_content_deleted_user_id(m->content.get()), by_me);
       break;
     default:
       break;
