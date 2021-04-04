@@ -10,6 +10,7 @@
 #include "td/telegram/ChatId.h"
 #include "td/telegram/ConfigShared.h"
 #include "td/telegram/ContactsManager.h"
+#include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogDb.h"
 #include "td/telegram/DialogFilter.h"
 #include "td/telegram/DialogFilter.hpp"
@@ -7624,7 +7625,7 @@ void MessagesManager::process_channel_update(tl_object_ptr<telegram_api::Update>
       }
 
       auto dialog_id = DialogId(channel_id);
-      delete_dialog_messages(dialog_id, message_ids, true, false);
+      delete_dialog_messages(dialog_id, message_ids, true, false, "updateDeleteChannelMessages");
       break;
     }
     case telegram_api::updateEditChannelMessage::ID: {
@@ -9287,7 +9288,7 @@ void MessagesManager::after_get_difference() {
 
 void MessagesManager::on_get_empty_messages(DialogId dialog_id, vector<MessageId> empty_message_ids) {
   if (!empty_message_ids.empty()) {
-    delete_dialog_messages(dialog_id, std::move(empty_message_ids), true, true);
+    delete_dialog_messages(dialog_id, std::move(empty_message_ids), true, true, "on_get_empty_messages");
   }
 }
 
@@ -10106,10 +10107,11 @@ void MessagesManager::delete_messages_from_updates(const vector<MessageId> &mess
 }
 
 void MessagesManager::delete_dialog_messages(DialogId dialog_id, const vector<MessageId> &message_ids,
-                                             bool from_updates, bool skip_update_for_not_found_messages) {
+                                             bool from_updates, bool skip_update_for_not_found_messages,
+                                             const char *source) {
   Dialog *d = get_dialog_force(dialog_id);
   if (d == nullptr) {
-    LOG(INFO) << "Ignore deleteChannelMessages for unknown " << dialog_id;
+    LOG(INFO) << "Ignore deleteChannelMessages for unknown " << dialog_id << " from " << source;
     CHECK(from_updates);
     CHECK(dialog_id.get_type() == DialogType::Channel);
     return;
@@ -10121,7 +10123,7 @@ void MessagesManager::delete_dialog_messages(DialogId dialog_id, const vector<Me
     CHECK(!message_id.is_scheduled());
     if (from_updates) {
       if (!message_id.is_valid() || (!message_id.is_server() && dialog_id.get_type() != DialogType::SecretChat)) {
-        LOG(ERROR) << "Incoming update tries to delete " << message_id;
+        LOG(ERROR) << "Tried to delete " << message_id << " in " << dialog_id << " from " << source;
         continue;
       }
     } else {
@@ -10129,7 +10131,7 @@ void MessagesManager::delete_dialog_messages(DialogId dialog_id, const vector<Me
     }
 
     bool was_already_deleted = d->deleted_message_ids.count(message_id) != 0;
-    auto message = delete_message(d, message_id, true, &need_update_dialog_pos, "delete_dialog_messages");
+    auto message = delete_message(d, message_id, true, &need_update_dialog_pos, source);
     if (message == nullptr) {
       if (!skip_update_for_not_found_messages && !was_already_deleted) {
         deleted_message_ids.push_back(message_id.get());
@@ -10139,7 +10141,7 @@ void MessagesManager::delete_dialog_messages(DialogId dialog_id, const vector<Me
     }
   }
   if (need_update_dialog_pos) {
-    send_update_chat_last_message(d, "delete_dialog_messages");
+    send_update_chat_last_message(d, source);
   }
   send_update_delete_messages(dialog_id, std::move(deleted_message_ids), true, false);
 }
@@ -10437,11 +10439,11 @@ void MessagesManager::delete_messages(DialogId dialog_id, const vector<MessageId
   bool need_update_chat_has_scheduled_messages = false;
   vector<int64> deleted_message_ids;
   for (auto message_id : message_ids) {
-    need_update_chat_has_scheduled_messages |= message_id.is_scheduled();
     auto m = delete_message(d, message_id, true, &need_update_dialog_pos, DELETE_MESSAGE_USER_REQUEST_SOURCE);
     if (m == nullptr) {
       LOG(INFO) << "Can't delete " << message_id << " because it is not found";
     } else {
+      need_update_chat_has_scheduled_messages |= m->message_id.is_scheduled();
       deleted_message_ids.push_back(m->message_id.get());
     }
   }
@@ -10456,13 +10458,32 @@ void MessagesManager::delete_messages(DialogId dialog_id, const vector<MessageId
   }
 }
 
-void MessagesManager::delete_message_from_server(DialogId dialog_id, MessageId message_id, bool revoke) {
-  if (message_id.is_valid()) {
-    CHECK(message_id.is_server());
-    delete_messages_from_server(dialog_id, {message_id}, revoke, 0, Auto());
+void MessagesManager::delete_sent_message_from_server(DialogId dialog_id, MessageId message_id) {
+  // being sent message was deleted by the user or is in an inaccessible channel
+  // don't need to send an update to the user, because the message has already been deleted
+  if (!have_input_peer(dialog_id, AccessRights::Read)) {
+    LOG(INFO) << "Ignore sent " << message_id << " in inaccessible " << dialog_id;
+    return;
+  }
+
+  LOG(INFO) << "Delete already deleted sent " << message_id << " in " << dialog_id << " from server";
+  Dialog *d = get_dialog(dialog_id);
+  CHECK(d != nullptr);
+  if (get_message(d, message_id) != nullptr) {
+    delete_messages(dialog_id, {message_id}, true, Auto());
   } else {
-    CHECK(message_id.is_scheduled_server());
-    delete_scheduled_messages_from_server(dialog_id, {message_id}, 0, Auto());
+    if (message_id.is_valid()) {
+      CHECK(message_id.is_server());
+      delete_messages_from_server(dialog_id, {message_id}, true, 0, Auto());
+    } else {
+      CHECK(message_id.is_scheduled_server());
+      delete_scheduled_messages_from_server(dialog_id, {message_id}, 0, Auto());
+    }
+
+    bool need_update_dialog_pos = false;
+    auto m = delete_message(d, message_id, true, &need_update_dialog_pos, "delete_sent_message_from_server");
+    CHECK(m == nullptr);
+    CHECK(need_update_dialog_pos == false);
   }
 }
 
@@ -11396,7 +11417,7 @@ void MessagesManager::repair_channel_server_unread_count(Dialog *d) {
   }
 
   LOG(INFO) << "Reload ChannelFull for " << d->dialog_id << " to repair unread message counts";
-  get_dialog_info_full(d->dialog_id, Promise<Unit>());
+  get_dialog_info_full(d->dialog_id, Auto());
 }
 
 void MessagesManager::read_history_inbox(DialogId dialog_id, MessageId max_message_id, int32 unread_count,
@@ -12195,7 +12216,7 @@ void MessagesManager::ttl_loop(double now) {
     }
   }
   for (auto &it : to_delete) {
-    delete_dialog_messages(it.first, it.second, false, true);
+    delete_dialog_messages(it.first, it.second, false, true, "ttl_loop");
   }
   ttl_update_timeout(now);
 }
@@ -12899,7 +12920,7 @@ void MessagesManager::finish_delete_secret_messages(DialogId dialog_id, std::vec
       LOG(INFO) << "Skip deletion of service " << message_id;
     }
   }
-  delete_dialog_messages(dialog_id, to_delete_message_ids, true, false);
+  delete_dialog_messages(dialog_id, to_delete_message_ids, true, false, "finish_delete_secret_messages");
 }
 
 void MessagesManager::delete_secret_chat_history(SecretChatId secret_chat_id, bool remove_from_dialog_list,
@@ -13681,10 +13702,7 @@ FullMessageId MessagesManager::on_get_message(MessageInfo &&message_info, bool f
     unique_ptr<Message> old_message =
         delete_message(d, old_message_id, false, &need_update_dialog_pos, "add sent message");
     if (old_message == nullptr) {
-      // message has already been deleted by the user or sent to inaccessible channel
-      // don't need to send update to the user, because the message has already been deleted
-      LOG(INFO) << "Delete already deleted sent " << new_message->message_id << " from server";
-      delete_message_from_server(dialog_id, new_message->message_id, true);
+      delete_sent_message_from_server(dialog_id, new_message->message_id);
       being_readded_message_id_ = FullMessageId();
       return FullMessageId();
     }
@@ -22292,7 +22310,7 @@ void MessagesManager::on_get_history_from_database(DialogId dialog_id, MessageId
     is_first = false;
     pos++;
   }
-  resolve_dependencies_force(td_, dependencies, "get_history");
+  resolve_dependencies_force(td_, dependencies, "on_get_history_from_database");
 
   if (from_the_end && !last_added_message_id.is_valid() && last_received_message_id < d->first_database_message_id &&
       !d->have_full_history) {
@@ -22607,7 +22625,7 @@ void MessagesManager::on_get_scheduled_messages_from_database(DialogId dialog_id
       added_message_ids.push_back(m->message_id);
     }
   }
-  resolve_dependencies_force(td_, dependencies, "get_scheduled_messages");
+  resolve_dependencies_force(td_, dependencies, "on_get_scheduled_messages_from_database");
 
   // for (auto message_id : added_message_ids) {
   //   send_update_new_message(d, get_message(d, message_id));
@@ -26958,7 +26976,13 @@ bool MessagesManager::on_update_message_id(int64 random_id, MessageId new_messag
 
   being_sent_messages_.erase(it);
 
+  if (!have_message_force({dialog_id, old_message_id}, "on_update_message_id")) {
+    delete_sent_message_from_server(dialog_id, new_message_id);
+    return true;
+  }
+
   LOG(INFO) << "Save correspondence from " << new_message_id << " in " << dialog_id << " to " << old_message_id;
+  CHECK(old_message_id.is_yet_unsent());
   update_message_ids_[FullMessageId(dialog_id, new_message_id)] = old_message_id;
   return true;
 }
@@ -26982,7 +27006,13 @@ bool MessagesManager::on_update_scheduled_message_id(int64 random_id, ScheduledS
 
   being_sent_messages_.erase(it);
 
+  if (!have_message_force({dialog_id, old_message_id}, "on_update_scheduled_message_id")) {
+    delete_sent_message_from_server(dialog_id, MessageId(new_message_id, std::numeric_limits<int32>::max()));
+    return true;
+  }
+
   LOG(INFO) << "Save correspondence from " << new_message_id << " in " << dialog_id << " to " << old_message_id;
+  CHECK(old_message_id.is_yet_unsent());
   update_scheduled_message_ids_[dialog_id][new_message_id] = old_message_id;
   return true;
 }
@@ -28769,10 +28799,7 @@ FullMessageId MessagesManager::on_send_message_success(int64 random_id, MessageI
   being_readded_message_id_ = {dialog_id, old_message_id};
   unique_ptr<Message> sent_message = delete_message(d, old_message_id, false, &need_update_dialog_pos, source);
   if (sent_message == nullptr) {
-    // message has already been deleted by the user or sent to inaccessible channel
-    // don't need to send update to the user, because the message has already been deleted
-    LOG(INFO) << "Delete already deleted sent " << new_message_id << " from server";
-    delete_message_from_server(dialog_id, new_message_id, true);
+    delete_sent_message_from_server(dialog_id, new_message_id);
     being_readded_message_id_ = FullMessageId();
     return {};
   }
@@ -29323,7 +29350,7 @@ void MessagesManager::on_update_dialog_draft_message(DialogId dialog_id,
     if (!have_input_peer(dialog_id, AccessRights::Read)) {
       LOG(ERROR) << "Have no read access to " << dialog_id << " to repair chat draft message";
     } else {
-      send_get_dialog_query(dialog_id, Promise<Unit>(), 0, "on_update_dialog_draft_message");
+      send_get_dialog_query(dialog_id, Auto(), 0, "on_update_dialog_draft_message");
     }
     return;
   }
@@ -31849,7 +31876,7 @@ MessagesManager::Message *MessagesManager::on_get_message_from_database(DialogId
     CHECK(d != nullptr);
   }
 
-  if (!have_input_peer(d->dialog_id, AccessRights::Read)) {
+  if (!have_input_peer(dialog_id, AccessRights::Read)) {
     return nullptr;
   }
 
@@ -31872,7 +31899,10 @@ MessagesManager::Message *MessagesManager::on_get_message_from_database(DialogId
 
   Dependencies dependencies;
   add_message_dependencies(dependencies, m.get());
-  resolve_dependencies_force(td_, dependencies, "on_get_message_from_database");
+  if (!resolve_dependencies_force(td_, dependencies, "on_get_message_from_database")) {
+    FullMessageId full_message_id{dialog_id, m->message_id};
+    get_message_from_server(full_message_id, Auto());
+  }
 
   m->have_previous = false;
   m->have_next = false;
@@ -31882,7 +31912,7 @@ MessagesManager::Message *MessagesManager::on_get_message_from_database(DialogId
   auto result = add_message_to_dialog(d, std::move(m), false, &need_update, &need_update_dialog_pos, source);
   if (need_update_dialog_pos) {
     LOG(ERROR) << "Need update dialog pos after load " << (result == nullptr ? MessageId() : result->message_id)
-               << " in " << d->dialog_id << " from " << source;
+               << " in " << dialog_id << " from " << source;
     send_update_chat_last_message(d, source);
   }
   return result;
@@ -33051,7 +33081,9 @@ void MessagesManager::delete_message_from_database(Dialog *d, MessageId message_
     if (message_id.is_any_server()) {
       auto old_message_id = find_old_message_id(d->dialog_id, message_id);
       if (old_message_id.is_valid()) {
-        LOG(WARNING) << "Sent " << FullMessageId{d->dialog_id, message_id} << " was deleted before it was received";
+        bool have_old_message = get_message(d, old_message_id) != nullptr;
+        LOG(WARNING) << "Sent " << FullMessageId{d->dialog_id, message_id}
+                     << " was deleted before it was received. Have old message = " << have_old_message;
         send_closure_later(actor_id(this), &MessagesManager::delete_messages, d->dialog_id,
                            vector<MessageId>{old_message_id}, false, Promise<Unit>());
         delete_update_message_id(d->dialog_id, message_id);
@@ -34990,7 +35022,9 @@ unique_ptr<MessagesManager::Dialog> MessagesManager::parse_dialog(DialogId dialo
   if (d->draft_message != nullptr) {
     add_formatted_text_dependencies(dependencies, &d->draft_message->input_message_text.text);
   }
-  resolve_dependencies_force(td_, dependencies, "parse_dialog");
+  if (!resolve_dependencies_force(td_, dependencies, "parse_dialog")) {
+    send_get_dialog_query(dialog_id, Auto(), 0, "parse_dialog");
+  }
 
   return d;
 }
@@ -36874,7 +36908,7 @@ void MessagesManager::on_binlog_events(vector<BinlogEvent> &&events) {
           break;
         }
 
-        send_get_dialog_query(dialog_id, Promise<Unit>(), event.id_, "GetDialogFromServerLogEvent");
+        send_get_dialog_query(dialog_id, Auto(), event.id_, "GetDialogFromServerLogEvent");
         break;
       }
       case LogEvent::HandlerType::UnpinAllDialogMessagesOnServer: {

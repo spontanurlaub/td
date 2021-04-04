@@ -8,7 +8,6 @@
 
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/ChannelId.h"
-#include "td/telegram/Dependencies.h"
 #include "td/telegram/DialogAction.h"
 #include "td/telegram/DialogDate.h"
 #include "td/telegram/DialogDb.h"
@@ -81,17 +80,12 @@
 namespace td {
 
 struct BinlogEvent;
-
+struct Dependencies;
 class DialogFilter;
-
 class DraftMessage;
-
 struct InputMessageContent;
-
 class MessageContent;
-
 class MultiSequenceDispatcher;
-
 class Td;
 
 class MessagesManager : public Actor {
@@ -1816,7 +1810,7 @@ class MessagesManager : public Actor {
   void delete_messages_from_updates(const vector<MessageId> &message_ids);
 
   void delete_dialog_messages(DialogId dialog_id, const vector<MessageId> &message_ids, bool from_updates,
-                              bool skip_update_for_not_found_messages);
+                              bool skip_update_for_not_found_messages, const char *source);
 
   void update_dialog_pinned_messages_from_updates(DialogId dialog_id, const vector<MessageId> &message_ids,
                                                   bool is_pin);
@@ -1912,7 +1906,7 @@ class MessagesManager : public Actor {
   void do_delete_all_dialog_messages(Dialog *d, unique_ptr<Message> &message, bool is_permanently_deleted,
                                      vector<int64> &deleted_message_ids);
 
-  void delete_message_from_server(DialogId dialog_id, MessageId message_ids, bool revoke);
+  void delete_sent_message_from_server(DialogId dialog_id, MessageId message_id);
 
   void delete_messages_from_server(DialogId dialog_id, vector<MessageId> message_ids, bool revoke, uint64 log_event_id,
                                    Promise<Unit> &&promise);
