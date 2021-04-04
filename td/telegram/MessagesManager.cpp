@@ -10970,7 +10970,11 @@ void MessagesManager::unload_dialog(DialogId dialog_id) {
 
   Dialog *d = get_dialog(dialog_id);
   CHECK(d != nullptr);
-  CHECK(d->has_unload_timeout);
+
+  if (!d->has_unload_timeout) {
+    // possible right after the dialog was opened
+    return;
+  }
 
   if (!is_message_unload_enabled()) {
     // just in case
@@ -14681,7 +14685,13 @@ void MessagesManager::on_get_dialogs(FolderId folder_id, vector<tl_object_ptr<te
         }
       }
       for (auto dialog_id : old_pinned_dialog_ids) {
-        if (set_dialog_is_pinned(dialog_id, false)) {
+        Dialog *d = get_dialog_force(dialog_id);
+        if (d == nullptr) {
+          LOG(ERROR) << "Failed to find " << dialog_id << " to unpin in " << folder_id;
+          force_create_dialog(dialog_id, "from_pinned_dialog_list", true);
+          d = get_dialog_force(dialog_id);
+        }
+        if (d != nullptr && set_dialog_is_pinned(DialogListId(folder_id), d, false)) {
           are_pinned_dialogs_saved = true;
         }
       }
@@ -18856,7 +18866,15 @@ Status MessagesManager::set_pinned_dialogs(DialogListId dialog_list_id, vector<D
     set_dialog_is_pinned(dialog_id, true);
   }
   for (auto dialog_id : old_pinned_dialog_ids) {
-    set_dialog_is_pinned(dialog_id, false);
+    Dialog *d = get_dialog_force(dialog_id);
+    if (d == nullptr) {
+      LOG(ERROR) << "Failed to find " << dialog_id << " to unpin in " << dialog_list_id;
+      force_create_dialog(dialog_id, "set_pinned_dialogs", true);
+      d = get_dialog_force(dialog_id);
+    }
+    if (d != nullptr) {
+      set_dialog_is_pinned(dialog_list_id, d, false);
+    }
   }
 
   if (server_old_dialog_ids != server_new_dialog_ids) {
@@ -33735,6 +33753,7 @@ MessageId MessagesManager::get_message_id_by_random_id(Dialog *d, int64 random_i
 void MessagesManager::force_create_dialog(DialogId dialog_id, const char *source, bool expect_no_access,
                                           bool force_update_dialog_pos) {
   LOG_CHECK(dialog_id.is_valid()) << source;
+  LOG_CHECK(is_inited_) << dialog_id << ' ' << source << ' ' << expect_no_access << ' ' << force_update_dialog_pos;
   Dialog *d = get_dialog_force(dialog_id);
   if (d == nullptr) {
     LOG(INFO) << "Force create " << dialog_id << " from " << source;
@@ -33825,6 +33844,7 @@ MessagesManager::Dialog *MessagesManager::add_dialog(DialogId dialog_id) {
 
 MessagesManager::Dialog *MessagesManager::add_new_dialog(unique_ptr<Dialog> &&d, bool is_loaded_from_database) {
   auto dialog_id = d->dialog_id;
+  LOG_CHECK(is_inited_) << dialog_id << ' ' << is_loaded_from_database;
   switch (dialog_id.get_type()) {
     case DialogType::User:
       if (dialog_id == get_my_dialog_id() && d->last_read_inbox_message_id == MessageId::max() &&
@@ -34557,8 +34577,9 @@ bool MessagesManager::set_dialog_order(Dialog *d, int64 new_order, bool need_sen
   }
 
   auto folder_ptr = get_dialog_folder(d->folder_id);
-  LOG_CHECK(folder_ptr != nullptr) << dialog_id << ' ' << d->folder_id << ' ' << is_loaded_from_database << ' '
-                                   << source;
+  LOG_CHECK(folder_ptr != nullptr) << is_inited_ << ' ' << G()->close_flag() << ' ' << dialog_id << ' ' << d->folder_id
+                                   << ' ' << is_loaded_from_database << ' ' << td_->auth_manager_->is_authorized()
+                                   << ' ' << td_->auth_manager_->was_authorized() << ' ' << source;
   auto &folder = *folder_ptr;
   if (old_date == new_date) {
     if (new_order == DEFAULT_ORDER) {
