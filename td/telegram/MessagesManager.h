@@ -496,7 +496,7 @@ class MessagesManager : public Actor {
   tl_object_ptr<td_api::chatEvents> get_chat_events_object(int64 random_id);
 
   bool have_dialog(DialogId dialog_id) const;
-  bool have_dialog_force(DialogId dialog_id);
+  bool have_dialog_force(DialogId dialog_id, const char *source = "have_dialog_force");
 
   bool have_dialog_info(DialogId dialog_id) const;
   bool have_dialog_info_force(DialogId dialog_id) const;
@@ -2404,9 +2404,9 @@ class MessagesManager : public Actor {
 
   MessageId get_message_id_by_random_id(Dialog *d, int64 random_id, const char *source);
 
-  Dialog *add_dialog(DialogId dialog_id);
+  Dialog *add_dialog(DialogId dialog_id, const char *source);
 
-  Dialog *add_new_dialog(unique_ptr<Dialog> &&d, bool is_loaded_from_database);
+  Dialog *add_new_dialog(unique_ptr<Dialog> &&d, bool is_loaded_from_database, const char *source);
 
   void fix_new_dialog(Dialog *d, unique_ptr<Message> &&last_database_message, MessageId last_database_message_id,
                       int64 order, int32 last_clear_history_date, MessageId last_clear_history_message_id,
@@ -2428,9 +2428,9 @@ class MessagesManager : public Actor {
   Dialog *get_dialog(DialogId dialog_id);
   const Dialog *get_dialog(DialogId dialog_id) const;
 
-  Dialog *get_dialog_force(DialogId dialog_id);
+  Dialog *get_dialog_force(DialogId dialog_id, const char *source = "get_dialog_force");
 
-  Dialog *on_load_dialog_from_database(DialogId dialog_id, const BufferSlice &value);
+  Dialog *on_load_dialog_from_database(DialogId dialog_id, const BufferSlice &value, const char *source);
 
   void on_get_dialogs_from_database(FolderId folder_id, int32 limit, DialogDbGetDialogsResult &&dialogs,
                                     Promise<Unit> &&promise);
