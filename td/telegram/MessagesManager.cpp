@@ -20126,8 +20126,8 @@ vector<DialogId> MessagesManager::get_dialog_notification_settings_exceptions(No
     vector<DialogDate> ordered_dialogs;
     auto my_dialog_id = get_my_dialog_id();
     for (const auto &list : dialog_folders_) {
-      for (const auto &it : list.second.ordered_dialogs_) {
-        auto dialog_id = it.get_dialog_id();
+      for (const auto &dialog_date : list.second.ordered_dialogs_) {
+        auto dialog_id = dialog_date.get_dialog_id();
         if (filter_scope && get_dialog_notification_setting_scope(dialog_id) != scope) {
           continue;
         }
@@ -20137,6 +20137,8 @@ vector<DialogId> MessagesManager::get_dialog_notification_settings_exceptions(No
 
         const Dialog *d = get_dialog(dialog_id);
         CHECK(d != nullptr);
+        LOG_CHECK(d->folder_id == list.first)
+            << list.first << ' ' << dialog_id << ' ' << d->folder_id << ' ' << d->order;
         if (d->order == DEFAULT_ORDER) {
           break;
         }
@@ -20152,9 +20154,9 @@ vector<DialogId> MessagesManager::get_dialog_notification_settings_exceptions(No
     std::sort(ordered_dialogs.begin(), ordered_dialogs.end());
 
     vector<DialogId> result;
-    for (auto &it : ordered_dialogs) {
-      CHECK(result.empty() || result.back() != it.get_dialog_id());
-      result.push_back(it.get_dialog_id());
+    for (auto &dialog_date : ordered_dialogs) {
+      CHECK(result.empty() || result.back() != dialog_date.get_dialog_id());
+      result.push_back(dialog_date.get_dialog_id());
     }
     promise.set_value(Unit());
     return result;
@@ -29764,8 +29766,7 @@ void MessagesManager::set_dialog_folder_id(Dialog *d, FolderId folder_id) {
   }
 
   DialogDate dialog_date(d->order, d->dialog_id);
-  auto *folder = get_dialog_folder(d->folder_id);
-  if (folder->ordered_dialogs_.erase(dialog_date) == 0) {
+  if (get_dialog_folder(d->folder_id)->ordered_dialogs_.erase(dialog_date) == 0) {
     LOG_IF(ERROR, d->order != DEFAULT_ORDER) << d->dialog_id << " not found in the chat list";
   }
 
@@ -31299,10 +31300,10 @@ tl_object_ptr<telegram_api::channelAdminLogEventsFilter> MessagesManager::get_ch
     flags |= telegram_api::channelAdminLogEventsFilter::SETTINGS_MASK;
   }
   if (filters->invite_link_changes_) {
-    flags |= telegram_api::channelAdminLogEventsFilter::GROUP_CALL_MASK;
+    flags |= telegram_api::channelAdminLogEventsFilter::INVITES_MASK;
   }
   if (filters->voice_chat_changes_) {
-    flags |= telegram_api::channelAdminLogEventsFilter::INVITES_MASK;
+    flags |= telegram_api::channelAdminLogEventsFilter::GROUP_CALL_MASK;
   }
 
   return make_tl_object<telegram_api::channelAdminLogEventsFilter>(
@@ -34714,7 +34715,10 @@ void MessagesManager::update_dialog_lists(
 
     if (d->folder_id != FolderId::main()) {
       LOG(INFO) << "Change folder of " << dialog_id << " to " << FolderId::main();
+      DialogDate dialog_date(d->order, dialog_id);
+      get_dialog_folder(d->folder_id)->ordered_dialogs_.erase(dialog_date);
       do_set_dialog_folder_id(d, FolderId::main());
+      get_dialog_folder(d->folder_id)->ordered_dialogs_.insert(dialog_date);
     }
   }
 
