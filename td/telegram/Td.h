@@ -237,7 +237,7 @@ class Td final : public NetQueryCallback {
   static td_api::object_ptr<td_api::Object> static_request(td_api::object_ptr<td_api::Function> function);
 
  private:
-  static constexpr const char *TDLIB_VERSION = "1.7.3";
+  static constexpr const char *TDLIB_VERSION = "1.7.4";
   static constexpr int64 ONLINE_ALARM_ID = 0;
   static constexpr int64 PING_SERVER_ALARM_ID = -1;
   static constexpr int32 PING_SERVER_TIMEOUT = 300;
@@ -701,11 +701,17 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, td_api::sendCallDebugInformation &request);
 
-  void on_request(uint64 id, const td_api::getAvailableVoiceChatAliases &request);
+  void on_request(uint64 id, const td_api::getVoiceChatAvailableParticipants &request);
 
-  void on_request(uint64 id, const td_api::createVoiceChat &request);
+  void on_request(uint64 id, const td_api::setVoiceChatDefaultParticipant &request);
+
+  void on_request(uint64 id, td_api::createVoiceChat &request);
 
   void on_request(uint64 id, const td_api::getGroupCall &request);
+
+  void on_request(uint64 id, const td_api::startScheduledGroupCall &request);
+
+  void on_request(uint64 id, const td_api::toggleGroupCallEnabledStartNotification &request);
 
   void on_request(uint64 id, td_api::joinGroupCall &request);
 
@@ -809,7 +815,7 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, td_api::transferChatOwnership &request);
 
-  void on_request(uint64 id, const td_api::getChatMember &request);
+  void on_request(uint64 id, td_api::getChatMember &request);
 
   void on_request(uint64 id, td_api::searchChatMembers &request);
 
