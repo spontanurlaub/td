@@ -9279,9 +9279,11 @@ void MessagesManager::after_get_difference() {
     auto *list = get_dialog_list(dialog_list_id);
     CHECK(list != nullptr);
     if (!list->is_dialog_unread_count_inited_) {
-      get_dialogs(dialog_list_id, MIN_DIALOG_DATE, static_cast<int32>(list->pinned_dialogs_.size() + 2), false,
-                  PromiseCreator::lambda([dialog_list_id](Unit) {
-                    if (!G()->close_flag()) {
+      int32 limit = list->are_pinned_dialogs_inited_ ? static_cast<int32>(list->pinned_dialogs_.size())
+                                                     : get_pinned_dialogs_limit(dialog_list_id);
+      get_dialogs(dialog_list_id, MIN_DIALOG_DATE, limit + 2, false,
+                  PromiseCreator::lambda([dialog_list_id](Result<Unit> result) {
+                    if (!G()->close_flag() && result.is_ok()) {
                       LOG(INFO) << "Inited total chat count in " << dialog_list_id;
                     }
                   }));
@@ -14026,12 +14028,29 @@ void MessagesManager::set_dialog_is_empty(Dialog *d, const char *source) {
   update_dialog_pos(d, source);
 }
 
+bool MessagesManager::is_dialog_pinned(DialogListId dialog_list_id, DialogId dialog_id) const {
+  if (get_dialog_pinned_order(dialog_list_id, dialog_id) != DEFAULT_ORDER) {
+    return true;
+  }
+  if (dialog_list_id.is_filter()) {
+    const auto *filter = get_dialog_filter(dialog_list_id.get_filter_id());
+    if (filter != nullptr) {
+      for (const auto &input_dialog_id : filter->pinned_dialog_ids) {
+        if (input_dialog_id.get_dialog_id() == dialog_id) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 int64 MessagesManager::get_dialog_pinned_order(DialogListId dialog_list_id, DialogId dialog_id) const {
   return get_dialog_pinned_order(get_dialog_list(dialog_list_id), dialog_id);
 }
 
 int64 MessagesManager::get_dialog_pinned_order(const DialogList *list, DialogId dialog_id) {
-  if (list != nullptr && !list->pinned_dialogs_.empty()) {
+  if (list != nullptr && !list->pinned_dialog_id_orders_.empty()) {
     auto it = list->pinned_dialog_id_orders_.find(dialog_id);
     if (it != list->pinned_dialog_id_orders_.end()) {
       return it->second;
@@ -14050,6 +14069,7 @@ bool MessagesManager::set_dialog_is_pinned(DialogId dialog_id, bool is_pinned) {
   return set_dialog_is_pinned(DialogListId(d->folder_id), d, is_pinned);
 }
 
+// only removes the Dialog from the dialog list, but changes nothing in the corresponding DialogFilter
 bool MessagesManager::set_dialog_is_pinned(DialogListId dialog_list_id, Dialog *d, bool is_pinned,
                                            bool need_update_dialog_lists) {
   if (td_->auth_manager_->is_bot()) {
@@ -14558,7 +14578,7 @@ void MessagesManager::on_get_dialogs(FolderId folder_id, vector<tl_object_ptr<te
     if (!td_->auth_manager_->is_bot() && !from_pinned_dialog_list) {
       // set is_pinned only after updating dialog pos to ensure that order is initialized
       bool is_pinned = (dialog->flags_ & DIALOG_FLAG_IS_PINNED) != 0;
-      bool was_pinned = get_dialog_pinned_order(DialogListId(d->folder_id), dialog_id) != DEFAULT_ORDER;
+      bool was_pinned = is_dialog_pinned(DialogListId(d->folder_id), dialog_id);
       if (is_pinned != was_pinned) {
         set_dialog_is_pinned(DialogListId(d->folder_id), d, is_pinned);
       }
@@ -15641,7 +15661,7 @@ std::pair<int32, vector<DialogId>> MessagesManager::get_dialogs(DialogListId dia
     auto *filter = get_dialog_filter(dialog_list_id.get_filter_id());
     CHECK(filter != nullptr);
     vector<InputDialogId> input_dialog_ids;
-    for (auto &input_dialog_id : filter->pinned_dialog_ids) {
+    for (const auto &input_dialog_id : filter->pinned_dialog_ids) {
       auto dialog_id = input_dialog_id.get_dialog_id();
       if (!have_dialog_force(dialog_id, "get_dialogs")) {
         if (dialog_id.get_type() == DialogType::SecretChat) {
@@ -15955,6 +15975,14 @@ void MessagesManager::preload_folder_dialog_list(FolderId folder_id) {
 
 vector<DialogId> MessagesManager::get_pinned_dialog_ids(DialogListId dialog_list_id) const {
   CHECK(!td_->auth_manager_->is_bot());
+  if (dialog_list_id.is_filter()) {
+    const auto *filter = get_dialog_filter(dialog_list_id.get_filter_id());
+    if (filter == nullptr) {
+      return {};
+    }
+    return transform(filter->pinned_dialog_ids, [](auto &input_dialog) { return input_dialog.get_dialog_id(); });
+  }
+
   auto *list = get_dialog_list(dialog_list_id);
   if (list == nullptr || !list->are_pinned_dialogs_inited_) {
     return {};
@@ -17834,9 +17862,7 @@ void MessagesManager::sort_dialog_filter_input_dialog_ids(DialogFilter *dialog_f
        {&dialog_filter->pinned_dialog_ids, &dialog_filter->excluded_dialog_ids, &dialog_filter->included_dialog_ids}) {
     for (auto input_dialog_id : *input_dialog_ids) {
       LOG_CHECK(all_dialog_ids.insert(input_dialog_id.get_dialog_id()).second)
-          << source << ' ' << td::contains(dialog_filter->pinned_dialog_ids, input_dialog_id) << ' '
-          << td::contains(dialog_filter->excluded_dialog_ids, input_dialog_id) << ' '
-          << td::contains(dialog_filter->included_dialog_ids, input_dialog_id);
+          << source << ' ' << input_dialog_id.get_dialog_id() << ' ' << dialog_filter;
     }
   }
 }
@@ -18185,7 +18211,7 @@ void MessagesManager::add_dialog_filter(unique_ptr<DialogFilter> dialog_filter, 
     }
   }
 
-  for (auto &input_dialog_id : reversed(dialog_filters_.back()->pinned_dialog_ids)) {
+  for (const auto &input_dialog_id : reversed(dialog_filters_.back()->pinned_dialog_ids)) {
     auto dialog_id = input_dialog_id.get_dialog_id();
     auto order = get_next_pinned_dialog_order();
     list.pinned_dialogs_.emplace_back(order, dialog_id);
@@ -18229,7 +18255,7 @@ void MessagesManager::edit_dialog_filter(unique_ptr<DialogFilter> new_dialog_fil
       new_list.dialog_list_id = dialog_list_id;
 
       auto old_it = old_list.pinned_dialogs_.rbegin();
-      for (auto &input_dialog_id : reversed(new_dialog_filter->pinned_dialog_ids)) {
+      for (const auto &input_dialog_id : reversed(new_dialog_filter->pinned_dialog_ids)) {
         auto dialog_id = input_dialog_id.get_dialog_id();
         while (old_it < old_list.pinned_dialogs_.rend()) {
           if (old_it->get_dialog_id() == dialog_id) {
@@ -18689,7 +18715,7 @@ Status MessagesManager::toggle_dialog_is_pinned(DialogListId dialog_list_id, Dia
     return Status::Error(6, "Pinned chats must be loaded first");
   }
 
-  bool was_pinned = get_dialog_pinned_order(dialog_list_id, dialog_id) != DEFAULT_ORDER;
+  bool was_pinned = is_dialog_pinned(dialog_list_id, dialog_id);
   if (is_pinned == was_pinned) {
     return Status::OK();
   }
@@ -18709,7 +18735,8 @@ Status MessagesManager::toggle_dialog_is_pinned(DialogListId dialog_list_id, Dia
       td::remove_if(new_dialog_filter->included_dialog_ids, is_changed_dialog);
       td::remove_if(new_dialog_filter->excluded_dialog_ids, is_changed_dialog);
     } else {
-      td::remove_if(new_dialog_filter->pinned_dialog_ids, is_changed_dialog);
+      bool is_removed = td::remove_if(new_dialog_filter->pinned_dialog_ids, is_changed_dialog);
+      CHECK(is_removed);
       new_dialog_filter->included_dialog_ids.push_back(get_input_dialog_id(dialog_id));
     }
 
@@ -27081,8 +27108,9 @@ MessagesManager::MessageNotificationGroup MessagesManager::get_message_notificat
     d = get_dialog(it->second);
     CHECK(d != nullptr);
   } else if (G()->parameters().use_message_db) {
-    G()->td_db()->get_dialog_db_sync()->begin_transaction().ensure();
-    auto r_value = G()->td_db()->get_dialog_db_sync()->get_notification_group(group_id);
+    auto *dialog_db = G()->td_db()->get_dialog_db_sync();
+    dialog_db->begin_transaction().ensure();  // read transaction
+    auto r_value = dialog_db->get_notification_group(group_id);
     if (r_value.is_ok()) {
       VLOG(notifications) << "Loaded " << r_value.ok() << " from database by " << group_id;
       d = get_dialog_force(r_value.ok().dialog_id, "get_message_notification_group_force");
@@ -27090,7 +27118,7 @@ MessagesManager::MessageNotificationGroup MessagesManager::get_message_notificat
       CHECK(r_value.error().message() == "Not found");
       VLOG(notifications) << "Failed to load " << group_id << " from database";
     }
-    G()->td_db()->get_dialog_db_sync()->commit_transaction().ensure();
+    dialog_db->commit_transaction().ensure();
   }
 
   if (d == nullptr) {
@@ -27376,9 +27404,10 @@ vector<NotificationGroupKey> MessagesManager::get_message_notification_group_key
   VLOG(notifications) << "Trying to load " << limit << " message notification groups from database from "
                       << from_group_key;
 
-  G()->td_db()->get_dialog_db_sync()->begin_transaction().ensure();
+  auto *dialog_db = G()->td_db()->get_dialog_db_sync();
+  dialog_db->begin_transaction().ensure();  // read transaction
   Result<vector<NotificationGroupKey>> r_notification_group_keys =
-      G()->td_db()->get_dialog_db_sync()->get_notification_groups_by_last_notification_date(from_group_key, limit);
+      dialog_db->get_notification_groups_by_last_notification_date(from_group_key, limit);
   r_notification_group_keys.ensure();
   auto group_keys = r_notification_group_keys.move_as_ok();
 
@@ -27397,7 +27426,7 @@ vector<NotificationGroupKey> MessagesManager::get_message_notification_group_key
     VLOG(notifications) << "Loaded " << group_key << " from database";
     result.push_back(group_key);
   }
-  G()->td_db()->get_dialog_db_sync()->commit_transaction().ensure();
+  dialog_db->commit_transaction().ensure();
   return result;
 }
 
@@ -33579,7 +33608,9 @@ MessagesManager::Dialog *MessagesManager::get_dialog_by_message_id(MessageId mes
                                                   r_value.ok().second, false, "get_dialog_by_message_id");
         if (m != nullptr) {
           CHECK(m->message_id == message_id);
-          CHECK(message_id_to_dialog_id_[message_id] == dialog_id);
+          LOG_CHECK(message_id_to_dialog_id_[message_id] == dialog_id)
+              << message_id << ' ' << dialog_id << ' ' << message_id_to_dialog_id_[message_id] << ' '
+              << m->debug_source;
           Dialog *d = get_dialog(dialog_id);
           CHECK(d != nullptr);
           return d;
@@ -34156,13 +34187,9 @@ void MessagesManager::fix_new_dialog(Dialog *d, unique_ptr<Message> &&last_datab
                       << ", max_notification_message_id = " << d->max_notification_message_id;
 
   if (d->messages != nullptr) {
-    auto get_debug_source = [](const unique_ptr<Message> &message) {
-      return message->debug_source != nullptr ? message->debug_source : "null";
-    };
-    LOG_CHECK(d->messages->message_id == last_message_id)
-        << d->messages->message_id << ' ' << last_message_id << ' ' << get_debug_source(d->messages);
-    LOG_CHECK(d->messages->left == nullptr) << get_debug_source(d->messages->left);
-    LOG_CHECK(d->messages->right == nullptr) << get_debug_source(d->messages->right);
+    CHECK(d->messages->message_id == last_message_id);
+    CHECK(d->messages->left == nullptr);
+    CHECK(d->messages->right == nullptr);
   }
 
   // must be after update_dialog_pos, because uses d->order
@@ -34472,7 +34499,7 @@ bool MessagesManager::set_dialog_order(Dialog *d, int64 new_order, bool need_sen
     if (new_order == DEFAULT_ORDER) {
       // first addition of a new left dialog
       if (folder.ordered_dialogs_.insert(new_date).second) {
-        for (auto &dialog_list : dialog_lists_) {
+        for (const auto &dialog_list : dialog_lists_) {
           if (get_dialog_pinned_order(&dialog_list.second, d->dialog_id) != DEFAULT_ORDER) {
             set_dialog_is_pinned(dialog_list.first, d, false);
           }
@@ -35129,7 +35156,7 @@ MessagesManager::get_dialog_positions(const Dialog *d) const {
   CHECK(d != nullptr);
   std::unordered_map<DialogListId, MessagesManager::DialogPositionInList, DialogListIdHash> positions;
   if (!td_->auth_manager_->is_bot()) {
-    for (auto &dialog_list : dialog_lists_) {
+    for (const auto &dialog_list : dialog_lists_) {
       positions.emplace(dialog_list.first, get_dialog_position_in_list(&dialog_list.second, d));
     }
   }
@@ -35752,7 +35779,7 @@ void MessagesManager::on_get_channel_difference(
       if (!td_->auth_manager_->is_bot()) {
         // set is_pinned only after updating dialog pos to ensure that order is initialized
         bool is_pinned = (dialog->flags_ & DIALOG_FLAG_IS_PINNED) != 0;
-        bool was_pinned = get_dialog_pinned_order(DialogListId(d->folder_id), dialog_id) != DEFAULT_ORDER;
+        bool was_pinned = is_dialog_pinned(DialogListId(d->folder_id), dialog_id);
         if (is_pinned != was_pinned) {
           set_dialog_is_pinned(DialogListId(d->folder_id), d, is_pinned);
         }
