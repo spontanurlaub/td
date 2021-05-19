@@ -24,6 +24,7 @@
 #include "td/utils/logging.h"
 #include "td/utils/misc.h"
 #include "td/utils/Random.h"
+#include "td/utils/SliceBuilder.h"
 
 #include <map>
 #include <unordered_set>
@@ -1936,6 +1937,8 @@ void GroupCallManager::process_group_call_participants(
       }
       if (participants_it->second->min_order < min_order) {
         // if previously known more users, adjust min_order
+        LOG(INFO) << "Decrease min_order from " << participants_it->second->min_order << " to " << min_order << " in "
+                  << input_group_call_id;
         participants_it->second->min_order = min_order;
       }
     }
@@ -1947,6 +1950,8 @@ void GroupCallManager::process_group_call_participants(
       auto old_min_order = participants_it->second->min_order;
       if (old_min_order > min_order) {
         participants_it->second->min_order = min_order;
+        LOG(INFO) << "Increase min_order from " << old_min_order << " to " << min_order << " in "
+                  << input_group_call_id;
 
         for (auto &participant : participants_it->second->participants) {
           auto real_order = get_real_participant_order(can_self_unmute, participant, participants_it->second.get());

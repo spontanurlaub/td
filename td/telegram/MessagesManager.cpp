@@ -67,6 +67,7 @@
 #include "td/utils/PathView.h"
 #include "td/utils/Random.h"
 #include "td/utils/Slice.h"
+#include "td/utils/SliceBuilder.h"
 #include "td/utils/Time.h"
 #include "td/utils/tl_helpers.h"
 #include "td/utils/utf8.h"
@@ -13068,6 +13069,10 @@ void MessagesManager::on_get_secret_message(SecretChatId secret_chat_id, UserId 
   message_info.ttl = message->ttl_;
 
   Dialog *d = get_dialog_force(message_info.dialog_id, "on_get_secret_message");
+  if (d == nullptr && have_dialog_info_force(message_info.dialog_id)) {
+    force_create_dialog(message_info.dialog_id, "on_get_secret_message", true, true);
+    d = get_dialog(message_info.dialog_id);
+  }
   if (d == nullptr) {
     LOG(ERROR) << "Ignore secret message in unknown " << message_info.dialog_id;
     pending_secret_message->success_promise.set_error(Status::Error(500, "Chat not found"));
@@ -13158,6 +13163,10 @@ void MessagesManager::on_secret_chat_screenshot_taken(SecretChatId secret_chat_i
   message_info.content = create_screenshot_taken_message_content();
 
   Dialog *d = get_dialog_force(message_info.dialog_id, "on_secret_chat_screenshot_taken");
+  if (d == nullptr && have_dialog_info_force(message_info.dialog_id)) {
+    force_create_dialog(message_info.dialog_id, "on_get_secret_message", true, true);
+    d = get_dialog(message_info.dialog_id);
+  }
   if (d == nullptr) {
     LOG(ERROR) << "Ignore secret message in unknown " << message_info.dialog_id;
     pending_secret_message->success_promise.set_error(Status::Error(500, "Chat not found"));
@@ -13192,6 +13201,10 @@ void MessagesManager::on_secret_chat_ttl_changed(SecretChatId secret_chat_id, Us
   message_info.content = create_chat_set_ttl_message_content(ttl);
 
   Dialog *d = get_dialog_force(message_info.dialog_id, "on_secret_chat_ttl_changed");
+  if (d == nullptr && have_dialog_info_force(message_info.dialog_id)) {
+    force_create_dialog(message_info.dialog_id, "on_get_secret_message", true, true);
+    d = get_dialog(message_info.dialog_id);
+  }
   if (d == nullptr) {
     LOG(ERROR) << "Ignore secret message in unknown " << message_info.dialog_id;
     pending_secret_message->success_promise.set_error(Status::Error(500, "Chat not found"));
