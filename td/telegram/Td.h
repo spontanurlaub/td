@@ -55,6 +55,7 @@ class GroupCallManager;
 class InlineQueriesManager;
 class HashtagHints;
 class LanguagePackManager;
+class LinkManager;
 class MessagesManager;
 class NetStatsManager;
 class NotificationManager;
@@ -120,8 +121,6 @@ class Td final : public NetQueryCallback {
   void on_online_updated(bool force, bool send_update);
   void on_update_status_success(bool is_online);
 
-  void on_channel_unban_timeout(int64 channel_id_long);
-
   bool is_online() const;
 
   void set_is_bot_online(bool is_bot_online);
@@ -164,6 +163,8 @@ class Td final : public NetQueryCallback {
   ActorOwn<GroupCallManager> group_call_manager_actor_;
   unique_ptr<InlineQueriesManager> inline_queries_manager_;
   ActorOwn<InlineQueriesManager> inline_queries_manager_actor_;
+  unique_ptr<LinkManager> link_manager_;
+  ActorOwn<LinkManager> link_manager_actor_;
   unique_ptr<MessagesManager> messages_manager_;
   ActorOwn<MessagesManager> messages_manager_actor_;
   unique_ptr<NotificationManager> notification_manager_;
@@ -577,6 +578,8 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, const td_api::openMessageContent &request);
 
+  void on_request(uint64 id, const td_api::getInternalLinkType &request);
+
   void on_request(uint64 id, td_api::getExternalLinkInfo &request);
 
   void on_request(uint64 id, td_api::getExternalLink &request);
@@ -715,6 +718,10 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, td_api::joinGroupCall &request);
 
+  void on_request(uint64 id, td_api::startGroupCallScreenSharing &request);
+
+  void on_request(uint64 id, const td_api::endGroupCallScreenSharing &request);
+
   void on_request(uint64 id, td_api::setGroupCallTitle &request);
 
   void on_request(uint64 id, const td_api::toggleGroupCallMuteNewParticipants &request);
@@ -727,7 +734,13 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, td_api::startGroupCallRecording &request);
 
+  void on_request(uint64 id, const td_api::toggleGroupCallScreenSharingIsPaused &request);
+
   void on_request(uint64 id, const td_api::endGroupCallRecording &request);
+
+  void on_request(uint64 id, const td_api::toggleGroupCallIsMyVideoPaused &request);
+
+  void on_request(uint64 id, const td_api::toggleGroupCallIsMyVideoEnabled &request);
 
   void on_request(uint64 id, const td_api::setGroupCallParticipantIsSpeaking &request);
 
@@ -907,6 +920,10 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, td_api::setCommands &request);
 
+  void on_request(uint64 id, td_api::deleteCommands &request);
+
+  void on_request(uint64 id, td_api::getCommands &request);
+
   void on_request(uint64 id, const td_api::setLocation &request);
 
   void on_request(uint64 id, td_api::setProfilePhoto &request);
@@ -958,6 +975,10 @@ class Td final : public NetQueryCallback {
   void on_request(uint64 id, td_api::reorderInstalledStickerSets &request);
 
   void on_request(uint64 id, td_api::uploadStickerFile &request);
+
+  void on_request(uint64 id, td_api::getSuggestedStickerSetName &request);
+
+  void on_request(uint64 id, td_api::checkStickerSetName &request);
 
   void on_request(uint64 id, td_api::createNewStickerSet &request);
 
@@ -1155,7 +1176,7 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, const td_api::getPhoneNumberInfo &request);
 
-  void on_request(uint64 id, const td_api::getInviteText &request);
+  void on_request(uint64 id, const td_api::getApplicationDownloadLink &request);
 
   void on_request(uint64 id, td_api::getDeepLinkInfo &request);
 
