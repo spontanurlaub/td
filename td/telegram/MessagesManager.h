@@ -89,7 +89,7 @@ class MessageContent;
 class MultiSequenceDispatcher;
 class Td;
 
-class MessagesManager : public Actor {
+class MessagesManager final : public Actor {
  public:
   //  static constexpr int32 MESSAGE_FLAG_IS_UNREAD = 1 << 0;
   static constexpr int32 MESSAGE_FLAG_IS_OUT = 1 << 1;
@@ -136,7 +136,7 @@ class MessagesManager : public Actor {
   MessagesManager &operator=(const MessagesManager &) = delete;
   MessagesManager(MessagesManager &&) = delete;
   MessagesManager &operator=(MessagesManager &&) = delete;
-  ~MessagesManager() override;
+  ~MessagesManager() final;
 
   td_api::object_ptr<td_api::MessageSender> get_message_sender_object_const(UserId user_id, DialogId dialog_id) const;
 
@@ -556,10 +556,10 @@ class MessagesManager : public Actor {
 
   bool get_messages(DialogId dialog_id, const vector<MessageId> &message_ids, Promise<Unit> &&promise);
 
-  void get_message_from_server(FullMessageId full_message_id, Promise<Unit> &&promise,
+  void get_message_from_server(FullMessageId full_message_id, Promise<Unit> &&promise, const char *source,
                                tl_object_ptr<telegram_api::InputMessage> input_message = nullptr);
 
-  void get_messages_from_server(vector<FullMessageId> &&message_ids, Promise<Unit> &&promise,
+  void get_messages_from_server(vector<FullMessageId> &&message_ids, Promise<Unit> &&promise, const char *source,
                                 tl_object_ptr<telegram_api::InputMessage> input_message = nullptr);
 
   struct MessageThreadInfo {
@@ -1202,6 +1202,7 @@ class MessagesManager : public Actor {
     bool can_invite_members = false;
 
     bool is_opened = false;
+    bool was_opened = false;
 
     bool need_restore_reply_markup = true;
 
@@ -1539,7 +1540,7 @@ class MessagesManager : public Actor {
     }
   };
 
-  class MessagesIterator : public MessagesIteratorBase {
+  class MessagesIterator final : public MessagesIteratorBase {
    public:
     MessagesIterator() = default;
 
@@ -1553,7 +1554,7 @@ class MessagesManager : public Actor {
     }
   };
 
-  class MessagesConstIterator : public MessagesIteratorBase {
+  class MessagesConstIterator final : public MessagesIteratorBase {
    public:
     MessagesConstIterator() = default;
 
@@ -2601,9 +2602,9 @@ class MessagesManager : public Actor {
   void on_message_ttl_expired(Dialog *d, Message *m);
   void on_message_ttl_expired_impl(Dialog *d, Message *m);
 
-  void start_up() override;
-  void loop() override;
-  void tear_down() override;
+  void start_up() final;
+  void loop() final;
+  void tear_down() final;
 
   void create_folders();
   void init();
@@ -2988,7 +2989,7 @@ class MessagesManager : public Actor {
       being_loaded_secret_thumbnails_;  // thumbnail_file_id -> ...
 
   // TTL
-  class TtlNode : private HeapNode {
+  class TtlNode final : private HeapNode {
    public:
     TtlNode(DialogId dialog_id, MessageId message_id, bool by_ttl_period)
         : full_message_id_(dialog_id, message_id), by_ttl_period_(by_ttl_period) {

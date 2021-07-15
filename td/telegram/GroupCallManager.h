@@ -24,19 +24,20 @@
 #include "td/utils/Status.h"
 
 #include <unordered_map>
+#include <utility>
 
 namespace td {
 
 class Td;
 
-class GroupCallManager : public Actor {
+class GroupCallManager final : public Actor {
  public:
   GroupCallManager(Td *td, ActorShared<> parent);
   GroupCallManager(const GroupCallManager &) = delete;
   GroupCallManager &operator=(const GroupCallManager &) = delete;
   GroupCallManager(GroupCallManager &&) = delete;
   GroupCallManager &operator=(GroupCallManager &&) = delete;
-  ~GroupCallManager() override;
+  ~GroupCallManager() final;
 
   DialogId get_group_call_participant_id(const td_api::object_ptr<td_api::MessageSender> &message_sender);
 
@@ -67,7 +68,8 @@ class GroupCallManager : public Actor {
   void join_group_call(GroupCallId group_call_id, DialogId as_dialog_id, int32 audio_source, string &&payload,
                        bool is_muted, bool is_my_video_enabled, const string &invite_hash, Promise<string> &&promise);
 
-  void start_group_call_screen_sharing(GroupCallId group_call_id, string &&payload, Promise<string> &&promise);
+  void start_group_call_screen_sharing(GroupCallId group_call_id, int32 audio_source, string &&payload,
+                                       Promise<string> &&promise);
 
   void end_group_call_screen_sharing(GroupCallId group_call_id, Promise<Unit> &&promise);
 
@@ -147,7 +149,7 @@ class GroupCallManager : public Actor {
   static constexpr int32 CHECK_GROUP_CALL_IS_JOINED_TIMEOUT = 10;
   static constexpr size_t MAX_TITLE_LENGTH = 64;  // server side limit for group call/call record title length
 
-  void tear_down() override;
+  void tear_down() final;
 
   static void on_update_group_call_participant_order_timeout_callback(void *group_call_manager_ptr,
                                                                       int64 group_call_id_int);
@@ -214,6 +216,8 @@ class GroupCallManager : public Actor {
 
   static bool get_group_call_has_recording(const GroupCall *group_call);
 
+  static bool get_group_call_can_enable_video(const GroupCall *group_call);
+
   bool need_group_call_participants(InputGroupCallId input_group_call_id) const;
 
   bool need_group_call_participants(InputGroupCallId input_group_call_id, const GroupCall *group_call) const;
@@ -222,7 +226,8 @@ class GroupCallManager : public Actor {
 
   void sync_group_call_participants(InputGroupCallId input_group_call_id);
 
-  void on_sync_group_call_participants_failed(InputGroupCallId input_group_call_id);
+  void on_sync_group_call_participants(InputGroupCallId input_group_call_id,
+                                       Result<tl_object_ptr<telegram_api::phone_groupCall>> &&result);
 
   GroupCallParticipantOrder get_real_participant_order(bool can_self_unmute, const GroupCallParticipant &participant,
                                                        const GroupCallParticipants *participants) const;
@@ -242,7 +247,9 @@ class GroupCallManager : public Actor {
   void update_group_call_participants_order(InputGroupCallId input_group_call_id, bool can_self_unmute,
                                             GroupCallParticipants *participants, const char *source);
 
-  int process_group_call_participant(InputGroupCallId group_call_id, GroupCallParticipant &&participant);
+  // returns participant_count_diff and video_participant_count_diff
+  std::pair<int32, int32> process_group_call_participant(InputGroupCallId group_call_id,
+                                                         GroupCallParticipant &&participant);
 
   void on_add_group_call_participant(InputGroupCallId input_group_call_id, DialogId participant_dialog_id);
 
@@ -338,6 +345,8 @@ class GroupCallManager : public Actor {
 
   bool set_group_call_participant_count(GroupCall *group_call, int32 count, const char *source,
                                         bool force_update = false);
+
+  bool set_group_call_unmuted_video_count(GroupCall *group_call, int32 count, const char *source);
 
   void update_group_call_dialog(const GroupCall *group_call, const char *source, bool force);
 

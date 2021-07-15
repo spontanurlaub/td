@@ -29,7 +29,7 @@ namespace td {
 
 class Td;
 
-class BackgroundManager : public Actor {
+class BackgroundManager final : public Actor {
  public:
   BackgroundManager(Td *td, ActorShared<> parent);
 
@@ -91,9 +91,9 @@ class BackgroundManager : public Actor {
 
   class UploadBackgroundFileCallback;
 
-  void start_up() override;
+  void start_up() final;
 
-  void tear_down() override;
+  void tear_down() final;
 
   static string get_background_database_key(bool for_dark_theme);
 

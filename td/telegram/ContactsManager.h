@@ -58,14 +58,14 @@ struct BinlogEvent;
 
 class Td;
 
-class ContactsManager : public Actor {
+class ContactsManager final : public Actor {
  public:
   ContactsManager(Td *td, ActorShared<> parent);
   ContactsManager(const ContactsManager &) = delete;
   ContactsManager &operator=(const ContactsManager &) = delete;
   ContactsManager(ContactsManager &&) = delete;
   ContactsManager &operator=(ContactsManager &&) = delete;
-  ~ContactsManager() override;
+  ~ContactsManager() final;
 
   static UserId load_my_id();
 
@@ -1550,7 +1550,7 @@ class ContactsManager : public Actor {
 
   void on_channel_participant_cache_timeout(ChannelId channel_id);
 
-  void tear_down() override;
+  void tear_down() final;
 
   Td *td_;
   ActorShared<> parent_;
