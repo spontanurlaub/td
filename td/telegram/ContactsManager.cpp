@@ -4977,6 +4977,7 @@ void ContactsManager::set_my_id(UserId my_id) {
     my_id_ = my_id;
     G()->td_db()->get_binlog_pmc()->set("my_id", to_string(my_id.get()));
     G()->shared_config().set_option_integer("my_id", my_id_.get());
+    G()->td_db()->get_binlog_pmc()->force_sync(Promise<Unit>());
   }
 }
 
@@ -11875,6 +11876,9 @@ void ContactsManager::speculative_add_channel_participants(ChannelId channel_id,
       channel_full->bot_user_ids.push_back(user_id);
       channel_full->need_save_to_database = true;
       reload_channel_full(channel_id, Promise<Unit>(), "speculative_add_channel_participants");
+
+      send_closure_later(G()->messages_manager(), &MessagesManager::on_dialog_bots_updated, DialogId(channel_id),
+                         channel_full->bot_user_ids, false);
     }
   }
   if (is_participants_cache_changed) {
@@ -11912,6 +11916,9 @@ void ContactsManager::speculative_delete_channel_participant(ChannelId channel_i
     if (channel_full != nullptr && td::remove(channel_full->bot_user_ids, deleted_user_id)) {
       channel_full->need_save_to_database = true;
       update_channel_full(channel_full, channel_id);
+
+      send_closure_later(G()->messages_manager(), &MessagesManager::on_dialog_bots_updated, DialogId(channel_id),
+                         channel_full->bot_user_ids, false);
     }
   }
 
@@ -12049,10 +12056,16 @@ void ContactsManager::speculative_add_channel_user(ChannelId channel_id, UserId 
         channel_full->bot_user_ids.push_back(user_id);
         channel_full->need_save_to_database = true;
         reload_channel_full(channel_id, Promise<Unit>(), "speculative_add_channel_user");
+
+        send_closure_later(G()->messages_manager(), &MessagesManager::on_dialog_bots_updated, DialogId(channel_id),
+                           channel_full->bot_user_ids, false);
       }
     } else {
       if (td::remove(channel_full->bot_user_ids, user_id)) {
         channel_full->need_save_to_database = true;
+
+        send_closure_later(G()->messages_manager(), &MessagesManager::on_dialog_bots_updated, DialogId(channel_id),
+                           channel_full->bot_user_ids, false);
       }
     }
   }
