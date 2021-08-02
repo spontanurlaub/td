@@ -17,6 +17,7 @@
 #include "td/telegram/DialogLocation.h"
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/DialogSource.h"
+#include "td/telegram/EncryptedFile.h"
 #include "td/telegram/files/FileId.h"
 #include "td/telegram/files/FileSourceId.h"
 #include "td/telegram/FolderId.h"
@@ -228,8 +229,8 @@ class MessagesManager final : public Actor {
 
   void open_secret_message(SecretChatId secret_chat_id, int64 random_id, Promise<>);
 
-  void on_send_secret_message_success(int64 random_id, MessageId message_id, int32 date,
-                                      tl_object_ptr<telegram_api::EncryptedFile> file_ptr, Promise<> promise);
+  void on_send_secret_message_success(int64 random_id, MessageId message_id, int32 date, unique_ptr<EncryptedFile> file,
+                                      Promise<> promise);
   void on_send_secret_message_error(int64 random_id, Status error, Promise<> promise);
 
   void delete_secret_messages(SecretChatId secret_chat_id, std::vector<int64> random_ids, Promise<> promise);
@@ -242,8 +243,8 @@ class MessagesManager final : public Actor {
   void on_update_secret_chat_state(SecretChatId secret_chat_id, SecretChatState state);
 
   void on_get_secret_message(SecretChatId secret_chat_id, UserId user_id, MessageId message_id, int32 date,
-                             tl_object_ptr<telegram_api::encryptedFile> file,
-                             tl_object_ptr<secret_api::decryptedMessage> message, Promise<> promise);
+                             unique_ptr<EncryptedFile> file, tl_object_ptr<secret_api::decryptedMessage> message,
+                             Promise<> promise);
 
   void on_secret_chat_screenshot_taken(SecretChatId secret_chat_id, UserId user_id, MessageId message_id, int32 date,
                                        int64 random_id, Promise<> promise);
@@ -488,7 +489,7 @@ class MessagesManager final : public Actor {
 
   void unpin_all_dialog_messages(DialogId dialog_id, Promise<Unit> &&promise);
 
-  void get_dialog_info_full(DialogId dialog_id, Promise<Unit> &&promise);
+  void get_dialog_info_full(DialogId dialog_id, Promise<Unit> &&promise, const char *source);
 
   int64 get_dialog_event_log(DialogId dialog_id, const string &query, int64 from_event_id, int32 limit,
                              const tl_object_ptr<td_api::chatEventLogFilters> &filters, const vector<UserId> &user_ids,
