@@ -436,67 +436,6 @@ class GetInviteTextQuery final : public Td::ResultHandler {
   }
 };
 
-class GetDeepLinkInfoQuery final : public Td::ResultHandler {
-  Promise<td_api::object_ptr<td_api::deepLinkInfo>> promise_;
-
- public:
-  explicit GetDeepLinkInfoQuery(Promise<td_api::object_ptr<td_api::deepLinkInfo>> &&promise)
-      : promise_(std::move(promise)) {
-  }
-
-  void send(Slice link) {
-    Slice link_scheme("tg:");
-    if (begins_with(link, link_scheme)) {
-      link.remove_prefix(link_scheme.size());
-      if (begins_with(link, "//")) {
-        link.remove_prefix(2);
-      }
-    }
-    size_t pos = 0;
-    while (pos < link.size() && link[pos] != '/' && link[pos] != '?' && link[pos] != '#') {
-      pos++;
-    }
-    link.truncate(pos);
-    send_query(G()->net_query_creator().create_unauth(telegram_api::help_getDeepLinkInfo(link.str())));
-  }
-
-  void on_result(uint64 id, BufferSlice packet) final {
-    auto result_ptr = fetch_result<telegram_api::help_getDeepLinkInfo>(packet);
-    if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
-    }
-
-    auto result = result_ptr.move_as_ok();
-    switch (result->get_id()) {
-      case telegram_api::help_deepLinkInfoEmpty::ID:
-        return promise_.set_value(nullptr);
-      case telegram_api::help_deepLinkInfo::ID: {
-        auto info = telegram_api::move_object_as<telegram_api::help_deepLinkInfo>(result);
-        bool need_update = (info->flags_ & telegram_api::help_deepLinkInfo::UPDATE_APP_MASK) != 0;
-
-        auto entities = get_message_entities(nullptr, std::move(info->entities_), "GetDeepLinkInfoQuery");
-        auto status = fix_formatted_text(info->message_, entities, true, true, true, true);
-        if (status.is_error()) {
-          LOG(ERROR) << "Receive error " << status << " while parsing deep link info " << info->message_;
-          if (!clean_input_string(info->message_)) {
-            info->message_.clear();
-          }
-          entities = find_entities(info->message_, true);
-        }
-        FormattedText text{std::move(info->message_), std::move(entities)};
-        return promise_.set_value(
-            td_api::make_object<td_api::deepLinkInfo>(get_formatted_text_object(text, true), need_update));
-      }
-      default:
-        UNREACHABLE();
-    }
-  }
-
-  void on_error(uint64 id, Status status) final {
-    promise_.set_error(std::move(status));
-  }
-};
-
 class SaveAppLogQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
 
@@ -8217,7 +8156,7 @@ void Td::on_request(uint64 id, const td_api::getApplicationDownloadLink &request
 void Td::on_request(uint64 id, td_api::getDeepLinkInfo &request) {
   CLEAN_INPUT_STRING(request.link_);
   CREATE_REQUEST_PROMISE();
-  create_handler<GetDeepLinkInfoQuery>(std::move(promise))->send(request.link_);
+  link_manager_->get_deep_link_info(request.link_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::getApplicationConfig &request) {
@@ -8380,8 +8319,9 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getTextEn
   if (!check_utf8(request.text_)) {
     return make_error(400, "Text must be encoded in UTF-8");
   }
-  auto text_entities = find_entities(request.text_, false);
-  return make_tl_object<td_api::textEntities>(get_text_entities_object(text_entities, false));
+  auto text_entities = find_entities(request.text_, false, false);
+  return make_tl_object<td_api::textEntities>(
+      get_text_entities_object(text_entities, false, std::numeric_limits<int32>::max()));
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseTextEntities &request) {
@@ -8416,7 +8356,7 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseTextEntiti
   }
 
   return make_tl_object<td_api::formattedText>(std::move(request.text_),
-                                               get_text_entities_object(r_entities.ok(), false));
+                                               get_text_entities_object(r_entities.ok(), false, -1));
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseMarkdown &request) {
@@ -8429,14 +8369,14 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::parseMarkdown &
     return make_error(400, r_entities.error().message());
   }
   auto entities = r_entities.move_as_ok();
-  auto status = fix_formatted_text(request.text_->text_, entities, true, true, true, true);
+  auto status = fix_formatted_text(request.text_->text_, entities, true, true, true, true, true);
   if (status.is_error()) {
     return make_error(400, status.error().message());
   }
 
   auto parsed_text = parse_markdown_v3({std::move(request.text_->text_), std::move(entities)});
-  fix_formatted_text(parsed_text.text, parsed_text.entities, true, true, true, true).ensure();
-  return get_formatted_text_object(parsed_text, true);
+  fix_formatted_text(parsed_text.text, parsed_text.entities, true, true, true, true, true).ensure();
+  return get_formatted_text_object(parsed_text, false, std::numeric_limits<int32>::max());
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::getMarkdownText &request) {
@@ -8449,12 +8389,13 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::getMarkdownText
     return make_error(400, r_entities.error().message());
   }
   auto entities = r_entities.move_as_ok();
-  auto status = fix_formatted_text(request.text_->text_, entities, true, true, true, true);
+  auto status = fix_formatted_text(request.text_->text_, entities, true, true, true, true, true);
   if (status.is_error()) {
     return make_error(400, status.error().message());
   }
 
-  return get_formatted_text_object(get_markdown_v3({std::move(request.text_->text_), std::move(entities)}), true);
+  return get_formatted_text_object(get_markdown_v3({std::move(request.text_->text_), std::move(entities)}), false,
+                                   std::numeric_limits<int32>::max());
 }
 
 td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getFileMimeType &request) {

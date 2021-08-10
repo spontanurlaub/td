@@ -1030,7 +1030,7 @@ static void parse_caption(FormattedText &caption, ParserT &parser) {
     if (!check_utf8(caption.text)) {
       caption.text.clear();
     }
-    caption.entities = find_entities(caption.text, false);
+    caption.entities = find_entities(caption.text, false, true);
   }
 }
 
@@ -1461,7 +1461,7 @@ InlineMessageContent create_inline_message_content(Td *td, FileId file_id,
       auto inline_message = move_tl_object_as<telegram_api::botInlineMessageText>(bot_inline_message);
       auto entities = get_message_entities(td->contacts_manager_.get(), std::move(inline_message->entities_),
                                            "botInlineMessageText");
-      auto status = fix_formatted_text(inline_message->message_, entities, false, true, true, false);
+      auto status = fix_formatted_text(inline_message->message_, entities, false, true, true, false, false);
       if (status.is_error()) {
         LOG(ERROR) << "Receive error " << status << " while parsing botInlineMessageText " << inline_message->message_;
         break;
@@ -1525,7 +1525,7 @@ InlineMessageContent create_inline_message_content(Td *td, FileId file_id,
       auto inline_message = move_tl_object_as<telegram_api::botInlineMessageMediaAuto>(bot_inline_message);
       auto caption =
           get_message_text(td->contacts_manager_.get(), inline_message->message_, std::move(inline_message->entities_),
-                           true, 0, false, "create_inline_message_content");
+                           true, false, 0, false, "create_inline_message_content");
       if (allowed_media_content_id == td_api::inputMessageAnimation::ID) {
         result.message_content = make_unique<MessageAnimation>(file_id, std::move(caption));
       } else if (allowed_media_content_id == td_api::inputMessageAudio::ID) {
@@ -2914,9 +2914,9 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
       if (old_->text.text != new_->text.text) {
         if (need_message_changed_warning && need_message_text_changed_warning(old_, new_)) {
           LOG(ERROR) << "Message text has changed from "
-                     << to_string(get_message_content_object(old_content, td, dialog_id, -1, false, false))
+                     << to_string(get_message_content_object(old_content, td, dialog_id, -1, false, false, -1))
                      << ". New content is "
-                     << to_string(get_message_content_object(new_content, td, dialog_id, -1, false, false));
+                     << to_string(get_message_content_object(new_content, td, dialog_id, -1, false, false, -1));
         }
         need_update = true;
       }
@@ -2926,9 +2926,9 @@ void merge_message_contents(Td *td, const MessageContent *old_content, MessageCo
             old_->text.entities.size() <= MAX_CUSTOM_ENTITIES_COUNT &&
             need_message_entities_changed_warning(old_->text.entities, new_->text.entities)) {
           LOG(WARNING) << "Entities has changed from "
-                       << to_string(get_message_content_object(old_content, td, dialog_id, -1, false, false))
+                       << to_string(get_message_content_object(old_content, td, dialog_id, -1, false, false, -1))
                        << ". New content is "
-                       << to_string(get_message_content_object(new_content, td, dialog_id, -1, false, false));
+                       << to_string(get_message_content_object(new_content, td, dialog_id, -1, false, false, -1));
         }
         need_update = true;
       }
@@ -3823,14 +3823,14 @@ unique_ptr<MessageContent> get_secret_message_content(
   }
 
   auto entities = get_message_entities(std::move(secret_entities));
-  auto status = fix_formatted_text(message_text, entities, true, false, true, false);
+  auto status = fix_formatted_text(message_text, entities, true, false, true, td->auth_manager_->is_bot(), false);
   if (status.is_error()) {
     LOG(WARNING) << "Receive error " << status << " while parsing secret message \"" << message_text
                  << "\" with entities " << format::as_array(entities);
     if (!clean_input_string(message_text)) {
       message_text.clear();
     }
-    entities = find_entities(message_text, true);
+    entities = find_entities(message_text, true, td->auth_manager_->is_bot());
   }
 
   // support of old layer and old constructions
@@ -4647,19 +4647,21 @@ unique_ptr<MessageContent> get_action_message_content(Td *td, tl_object_ptr<tele
 
 tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageContent *content, Td *td,
                                                                  DialogId dialog_id, int32 message_date,
-                                                                 bool is_content_secret, bool skip_bot_commands) {
+                                                                 bool is_content_secret, bool skip_bot_commands,
+                                                                 int32 max_media_timestamp) {
   CHECK(content != nullptr);
   switch (content->get_type()) {
     case MessageContentType::Animation: {
       const MessageAnimation *m = static_cast<const MessageAnimation *>(content);
       return make_tl_object<td_api::messageAnimation>(
           td->animations_manager_->get_animation_object(m->file_id, "get_message_content_object"),
-          get_formatted_text_object(m->caption, skip_bot_commands), is_content_secret);
+          get_formatted_text_object(m->caption, skip_bot_commands, max_media_timestamp), is_content_secret);
     }
     case MessageContentType::Audio: {
       const MessageAudio *m = static_cast<const MessageAudio *>(content);
-      return make_tl_object<td_api::messageAudio>(td->audios_manager_->get_audio_object(m->file_id),
-                                                  get_formatted_text_object(m->caption, skip_bot_commands));
+      return make_tl_object<td_api::messageAudio>(
+          td->audios_manager_->get_audio_object(m->file_id),
+          get_formatted_text_object(m->caption, skip_bot_commands, max_media_timestamp));
     }
     case MessageContentType::Contact: {
       const MessageContact *m = static_cast<const MessageContact *>(content);
@@ -4669,7 +4671,7 @@ tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageCo
       const MessageDocument *m = static_cast<const MessageDocument *>(content);
       return make_tl_object<td_api::messageDocument>(
           td->documents_manager_->get_document_object(m->file_id, PhotoFormat::Jpeg),
-          get_formatted_text_object(m->caption, skip_bot_commands));
+          get_formatted_text_object(m->caption, skip_bot_commands, max_media_timestamp));
     }
     case MessageContentType::Game: {
       const MessageGame *m = static_cast<const MessageGame *>(content);
@@ -4694,9 +4696,9 @@ tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageCo
     }
     case MessageContentType::Photo: {
       const MessagePhoto *m = static_cast<const MessagePhoto *>(content);
-      return make_tl_object<td_api::messagePhoto>(get_photo_object(td->file_manager_.get(), m->photo),
-                                                  get_formatted_text_object(m->caption, skip_bot_commands),
-                                                  is_content_secret);
+      return make_tl_object<td_api::messagePhoto>(
+          get_photo_object(td->file_manager_.get(), m->photo),
+          get_formatted_text_object(m->caption, skip_bot_commands, max_media_timestamp), is_content_secret);
     }
     case MessageContentType::Sticker: {
       const MessageSticker *m = static_cast<const MessageSticker *>(content);
@@ -4704,8 +4706,9 @@ tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageCo
     }
     case MessageContentType::Text: {
       const MessageText *m = static_cast<const MessageText *>(content);
-      return make_tl_object<td_api::messageText>(get_formatted_text_object(m->text, skip_bot_commands),
-                                                 td->web_pages_manager_->get_web_page_object(m->web_page_id));
+      return make_tl_object<td_api::messageText>(
+          get_formatted_text_object(m->text, skip_bot_commands, max_media_timestamp),
+          td->web_pages_manager_->get_web_page_object(m->web_page_id));
     }
     case MessageContentType::Unsupported:
       return make_tl_object<td_api::messageUnsupported>();
@@ -4715,9 +4718,9 @@ tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageCo
     }
     case MessageContentType::Video: {
       const MessageVideo *m = static_cast<const MessageVideo *>(content);
-      return make_tl_object<td_api::messageVideo>(td->videos_manager_->get_video_object(m->file_id),
-                                                  get_formatted_text_object(m->caption, skip_bot_commands),
-                                                  is_content_secret);
+      return make_tl_object<td_api::messageVideo>(
+          td->videos_manager_->get_video_object(m->file_id),
+          get_formatted_text_object(m->caption, skip_bot_commands, max_media_timestamp), is_content_secret);
     }
     case MessageContentType::VideoNote: {
       const MessageVideoNote *m = static_cast<const MessageVideoNote *>(content);
@@ -4726,9 +4729,9 @@ tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageCo
     }
     case MessageContentType::VoiceNote: {
       const MessageVoiceNote *m = static_cast<const MessageVoiceNote *>(content);
-      return make_tl_object<td_api::messageVoiceNote>(td->voice_notes_manager_->get_voice_note_object(m->file_id),
-                                                      get_formatted_text_object(m->caption, skip_bot_commands),
-                                                      m->is_listened);
+      return make_tl_object<td_api::messageVoiceNote>(
+          td->voice_notes_manager_->get_voice_note_object(m->file_id),
+          get_formatted_text_object(m->caption, skip_bot_commands, max_media_timestamp), m->is_listened);
     }
     case MessageContentType::ChatCreate: {
       const MessageChatCreate *m = static_cast<const MessageChatCreate *>(content);
@@ -4877,6 +4880,10 @@ tl_object_ptr<td_api::MessageContent> get_message_content_object(const MessageCo
   return nullptr;
 }
 
+FormattedText *get_message_content_text_mutable(MessageContent *content) {
+  return const_cast<FormattedText *>(get_message_content_text(content));
+}
+
 const FormattedText *get_message_content_text(const MessageContent *content) {
   switch (content->get_type()) {
     case MessageContentType::Text:
@@ -4918,10 +4925,6 @@ int32 get_message_content_duration(const MessageContent *content, const Td *td) 
       auto audio_file_id = static_cast<const MessageAudio *>(content)->file_id;
       return td->audios_manager_->get_audio_duration(audio_file_id);
     }
-    case MessageContentType::Text: {
-      auto web_page_id = static_cast<const MessageText *>(content)->web_page_id;
-      return td->web_pages_manager_->get_web_page_duration(web_page_id);
-    }
     case MessageContentType::Video: {
       auto video_file_id = static_cast<const MessageVideo *>(content)->file_id;
       return td->videos_manager_->get_video_duration(video_file_id);
@@ -4936,6 +4939,34 @@ int32 get_message_content_duration(const MessageContent *content, const Td *td) 
     }
     default:
       return 0;
+  }
+}
+
+int32 get_message_content_media_duration(const MessageContent *content, const Td *td) {
+  CHECK(content != nullptr);
+  switch (content->get_type()) {
+    case MessageContentType::Audio: {
+      auto audio_file_id = static_cast<const MessageAudio *>(content)->file_id;
+      return td->audios_manager_->get_audio_duration(audio_file_id);
+    }
+    case MessageContentType::Text: {
+      auto web_page_id = static_cast<const MessageText *>(content)->web_page_id;
+      return td->web_pages_manager_->get_web_page_media_duration(web_page_id);
+    }
+    case MessageContentType::Video: {
+      auto video_file_id = static_cast<const MessageVideo *>(content)->file_id;
+      return td->videos_manager_->get_video_duration(video_file_id);
+    }
+    case MessageContentType::VideoNote: {
+      auto video_note_file_id = static_cast<const MessageVideoNote *>(content)->file_id;
+      return td->video_notes_manager_->get_video_note_duration(video_note_file_id);
+    }
+    case MessageContentType::VoiceNote: {
+      auto voice_file_id = static_cast<const MessageVoiceNote *>(content)->file_id;
+      return td->voice_notes_manager_->get_voice_note_duration(voice_file_id);
+    }
+    default:
+      return -1;
   }
 }
 
