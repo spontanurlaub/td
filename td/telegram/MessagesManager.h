@@ -31,6 +31,7 @@
 #include "td/telegram/MessageId.h"
 #include "td/telegram/MessageLinkInfo.h"
 #include "td/telegram/MessageReplyInfo.h"
+#include "td/telegram/MessageThreadInfo.h"
 #include "td/telegram/MessagesDb.h"
 #include "td/telegram/MessageSearchFilter.h"
 #include "td/telegram/MessageTtlSetting.h"
@@ -567,17 +568,13 @@ class MessagesManager final : public Actor {
   void get_messages_from_server(vector<FullMessageId> &&message_ids, Promise<Unit> &&promise, const char *source,
                                 tl_object_ptr<telegram_api::InputMessage> input_message = nullptr);
 
-  struct MessageThreadInfo {
-    DialogId dialog_id;
-    vector<MessageId> message_ids;
-  };
   void get_message_thread(DialogId dialog_id, MessageId message_id, Promise<MessageThreadInfo> &&promise);
 
   td_api::object_ptr<td_api::messageThreadInfo> get_message_thread_info_object(const MessageThreadInfo &info);
 
   void process_discussion_message(telegram_api::object_ptr<telegram_api::messages_discussionMessage> &&result,
                                   DialogId dialog_id, MessageId message_id, DialogId expected_dialog_id,
-                                  MessageId expected_message_id, Promise<vector<FullMessageId>> promise);
+                                  MessageId expected_message_id, Promise<MessageThreadInfo> promise);
 
   bool is_message_edited_recently(FullMessageId full_message_id, int32 seconds);
 
@@ -2141,7 +2138,8 @@ class MessagesManager final : public Actor {
 
   void attach_message_to_next(Dialog *d, MessageId message_id, const char *source);
 
-  bool update_message(Dialog *d, Message *old_message, unique_ptr<Message> new_message, bool *need_update_dialog_pos);
+  bool update_message(Dialog *d, Message *old_message, unique_ptr<Message> new_message, bool *need_update_dialog_pos,
+                      bool is_message_in_dialog);
 
   static bool need_message_changed_warning(const Message *old_message);
 
@@ -2216,9 +2214,9 @@ class MessagesManager final : public Actor {
 
   void send_update_message_send_succeeded(Dialog *d, MessageId old_message_id, const Message *m) const;
 
-  void send_update_message_content(DialogId dialog_id, Message *m, const char *source);
+  void send_update_message_content(DialogId dialog_id, Message *m, bool is_message_in_dialog, const char *source);
 
-  void send_update_message_content(const Dialog *d, Message *m, const char *source);
+  void send_update_message_content(const Dialog *d, Message *m, bool is_message_in_dialog, const char *source);
 
   void send_update_message_content_impl(DialogId dialog_id, const Message *m, const char *source) const;
 
@@ -2673,9 +2671,9 @@ class MessagesManager final : public Actor {
 
   void process_discussion_message_impl(telegram_api::object_ptr<telegram_api::messages_discussionMessage> &&result,
                                        DialogId dialog_id, MessageId message_id, DialogId expected_dialog_id,
-                                       MessageId expected_message_id, Promise<vector<FullMessageId>> promise);
+                                       MessageId expected_message_id, Promise<MessageThreadInfo> promise);
 
-  void on_get_discussion_message(DialogId dialog_id, MessageId message_id, vector<FullMessageId> full_message_ids,
+  void on_get_discussion_message(DialogId dialog_id, MessageId message_id, MessageThreadInfo &&message_thread_info,
                                  Promise<MessageThreadInfo> &&promise);
 
   static MessageId get_first_database_message_id_by_index(const Dialog *d, MessageSearchFilter filter);

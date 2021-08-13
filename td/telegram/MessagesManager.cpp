@@ -395,14 +395,14 @@ class GetDialogUnreadMarksQuery final : public Td::ResultHandler {
 };
 
 class GetDiscussionMessageQuery final : public Td::ResultHandler {
-  Promise<vector<FullMessageId>> promise_;
+  Promise<MessageThreadInfo> promise_;
   DialogId dialog_id_;
   MessageId message_id_;
   DialogId expected_dialog_id_;
   MessageId expected_message_id_;
 
  public:
-  explicit GetDiscussionMessageQuery(Promise<vector<FullMessageId>> &&promise) : promise_(std::move(promise)) {
+  explicit GetDiscussionMessageQuery(Promise<MessageThreadInfo> &&promise) : promise_(std::move(promise)) {
   }
 
   void send(DialogId dialog_id, MessageId message_id, DialogId expected_dialog_id, MessageId expected_message_id) {
@@ -6975,7 +6975,7 @@ void MessagesManager::on_external_update_message_content(FullMessageId full_mess
   CHECK(d != nullptr);
   Message *m = get_message(d, full_message_id.get_message_id());
   CHECK(m != nullptr);
-  send_update_message_content(d, m, "on_external_update_message_content");
+  send_update_message_content(d, m, true, "on_external_update_message_content");
   if (m->message_id == d->last_message_id) {
     send_update_chat_last_message_impl(d, "on_external_update_message_content");
   }
@@ -12157,7 +12157,7 @@ void MessagesManager::on_message_ttl_expired(Dialog *d, Message *m) {
   remove_message_file_sources(d->dialog_id, m);
   on_message_ttl_expired_impl(d, m);
   register_message_content(td_, m->content.get(), {d->dialog_id, m->message_id}, "on_message_ttl_expired");
-  send_update_message_content(d, m, "on_message_ttl_expired");
+  send_update_message_content(d, m, true, "on_message_ttl_expired");
   // the caller must call on_message_changed
 }
 
@@ -13670,7 +13670,7 @@ FullMessageId MessagesManager::on_get_message(MessageInfo &&message_info, bool f
     new_message->from_database = false;
     new_message->have_previous = false;
     new_message->have_next = false;
-    update_message(d, old_message.get(), std::move(new_message), &need_update_dialog_pos);
+    update_message(d, old_message.get(), std::move(new_message), &need_update_dialog_pos, false);
     new_message = std::move(old_message);
 
     set_message_id(new_message, message_id);
@@ -14257,7 +14257,7 @@ void MessagesManager::on_update_sent_text_message(int64 random_id,
     m->is_content_secret = is_secret_message_content(m->ttl, MessageContentType::Text);
   }
   if (need_update) {
-    send_update_message_content(dialog_id, m, "on_update_sent_text_message");
+    send_update_message_content(dialog_id, m, true, "on_update_sent_text_message");
     if (m->message_id == d->last_message_id) {
       send_update_chat_last_message_impl(d, "on_update_sent_text_message");
     }
@@ -16902,15 +16902,14 @@ void MessagesManager::get_message_thread(DialogId dialog_id, MessageId message_i
 
   TRY_RESULT_PROMISE(promise, top_thread_full_message_id, get_top_thread_full_message_id(dialog_id, m));
 
-  auto query_promise =
-      PromiseCreator::lambda([actor_id = actor_id(this), dialog_id, message_id,
-                              promise = std::move(promise)](Result<vector<FullMessageId>> result) mutable {
-        if (result.is_error()) {
-          return promise.set_error(result.move_as_error());
-        }
-        send_closure(actor_id, &MessagesManager::on_get_discussion_message, dialog_id, message_id, result.move_as_ok(),
-                     std::move(promise));
-      });
+  auto query_promise = PromiseCreator::lambda([actor_id = actor_id(this), dialog_id, message_id,
+                                               promise = std::move(promise)](Result<MessageThreadInfo> result) mutable {
+    if (result.is_error()) {
+      return promise.set_error(result.move_as_error());
+    }
+    send_closure(actor_id, &MessagesManager::on_get_discussion_message, dialog_id, message_id, result.move_as_ok(),
+                 std::move(promise));
+  });
 
   td_->create_handler<GetDiscussionMessageQuery>(std::move(query_promise))
       ->send(dialog_id, message_id, top_thread_full_message_id.get_dialog_id(),
@@ -16920,7 +16919,7 @@ void MessagesManager::get_message_thread(DialogId dialog_id, MessageId message_i
 void MessagesManager::process_discussion_message(
     telegram_api::object_ptr<telegram_api::messages_discussionMessage> &&result, DialogId dialog_id,
     MessageId message_id, DialogId expected_dialog_id, MessageId expected_message_id,
-    Promise<vector<FullMessageId>> promise) {
+    Promise<MessageThreadInfo> promise) {
   LOG(INFO) << "Receive discussion message for " << message_id << " in " << dialog_id << ": " << to_string(result);
   td_->contacts_manager_->on_get_users(std::move(result->users_), "process_discussion_message");
   td_->contacts_manager_->on_get_chats(std::move(result->chats_), "process_discussion_message");
@@ -16951,7 +16950,7 @@ void MessagesManager::process_discussion_message(
 void MessagesManager::process_discussion_message_impl(
     telegram_api::object_ptr<telegram_api::messages_discussionMessage> &&result, DialogId dialog_id,
     MessageId message_id, DialogId expected_dialog_id, MessageId expected_message_id,
-    Promise<vector<FullMessageId>> promise) {
+    Promise<MessageThreadInfo> promise) {
   if (G()->close_flag()) {
     return promise.set_error(Status::Error(500, "Request aborted"));
   }
@@ -16969,20 +16968,22 @@ void MessagesManager::process_discussion_message_impl(
     last_read_outbox_message_id = MessageId(ServerMessageId(result->read_outbox_max_id_));
   }
 
-  vector<FullMessageId> full_message_ids;
+  MessageThreadInfo message_thread_info;
+  message_thread_info.dialog_id = expected_dialog_id;
   MessageId top_message_id;
   for (auto &message : result->messages_) {
     auto full_message_id =
         on_get_message(std::move(message), false, true, false, false, false, "process_discussion_message");
     if (full_message_id.get_message_id().is_valid()) {
-      full_message_ids.push_back(full_message_id);
+      CHECK(full_message_id.get_dialog_id() == expected_dialog_id);
+      message_thread_info.message_ids.push_back(full_message_id.get_message_id());
       if (full_message_id.get_message_id() == expected_message_id) {
         top_message_id = expected_message_id;
       }
     }
   }
-  if (!full_message_ids.empty() && !top_message_id.is_valid()) {
-    top_message_id = full_message_ids.back().get_message_id();
+  if (!message_thread_info.message_ids.empty() && !top_message_id.is_valid()) {
+    top_message_id = message_thread_info.message_ids.back();
   }
   if (top_message_id.is_valid()) {
     on_update_read_message_comments(expected_dialog_id, top_message_id, max_message_id, last_read_inbox_message_id,
@@ -16992,11 +16993,11 @@ void MessagesManager::process_discussion_message_impl(
     on_update_read_message_comments(dialog_id, message_id, max_message_id, last_read_inbox_message_id,
                                     last_read_outbox_message_id);
   }
-  promise.set_value(std::move(full_message_ids));
+  promise.set_value(std::move(message_thread_info));
 }
 
 void MessagesManager::on_get_discussion_message(DialogId dialog_id, MessageId message_id,
-                                                vector<FullMessageId> full_message_ids,
+                                                MessageThreadInfo &&message_thread_info,
                                                 Promise<MessageThreadInfo> &&promise) {
   if (G()->close_flag()) {
     return promise.set_error(Status::Error(500, "Request aborted"));
@@ -17008,7 +17009,7 @@ void MessagesManager::on_get_discussion_message(DialogId dialog_id, MessageId me
   if (m == nullptr) {
     return promise.set_error(Status::Error(400, "Message not found"));
   }
-  if (full_message_ids.empty()) {
+  if (message_thread_info.message_ids.empty()) {
     return promise.set_error(Status::Error(400, "Message has no thread"));
   }
 
@@ -17025,18 +17026,11 @@ void MessagesManager::on_get_discussion_message(DialogId dialog_id, MessageId me
     expected_dialog_id = dialog_id;
   }
 
-  MessageThreadInfo result;
-  for (auto full_message_id : full_message_ids) {
-    if (full_message_id.get_dialog_id() != expected_dialog_id) {
-      return promise.set_error(Status::Error(500, "Expected messages in a different chat"));
-    }
-    result.message_ids.push_back(full_message_id.get_message_id());
-  }
-  if (expected_dialog_id != dialog_id && m->reply_info.is_comment && !result.message_ids.empty() &&
-      m->linked_top_thread_message_id != result.message_ids.back()) {
+  if (expected_dialog_id != dialog_id && m->reply_info.is_comment &&
+      m->linked_top_thread_message_id != message_thread_info.message_ids.back()) {
     auto linked_d = get_dialog_force(expected_dialog_id, "on_get_discussion_message 2");
     CHECK(linked_d != nullptr);
-    auto linked_message_id = result.message_ids.back();
+    auto linked_message_id = message_thread_info.message_ids.back();
     Message *linked_m = get_message_force(linked_d, linked_message_id, "on_get_discussion_message 3");
     CHECK(linked_m != nullptr && linked_m->message_id.is_server());
     if (linked_m->top_thread_message_id == linked_m->message_id &&
@@ -17049,8 +17043,7 @@ void MessagesManager::on_get_discussion_message(DialogId dialog_id, MessageId me
       on_dialog_updated(dialog_id, "on_get_discussion_message");
     }
   }
-  result.dialog_id = expected_dialog_id;
-  promise.set_value(std::move(result));
+  promise.set_value(std::move(message_thread_info));
 }
 
 td_api::object_ptr<td_api::messageThreadInfo> MessagesManager::get_message_thread_info_object(
@@ -17610,15 +17603,14 @@ void MessagesManager::on_get_message_link_message(MessageLinkInfo &&info, Dialog
     return;
   }
 
-  auto query_promise =
-      PromiseCreator::lambda([actor_id = actor_id(this), info = std::move(info),
-                              promise = std::move(promise)](Result<vector<FullMessageId>> result) mutable {
-        if (result.is_error() || result.ok().empty()) {
-          return promise.set_value(std::move(info));
-        }
-        send_closure(actor_id, &MessagesManager::on_get_message_link_discussion_message, std::move(info),
-                     result.ok()[0].get_dialog_id(), std::move(promise));
-      });
+  auto query_promise = PromiseCreator::lambda([actor_id = actor_id(this), info = std::move(info),
+                                               promise = std::move(promise)](Result<MessageThreadInfo> result) mutable {
+    if (result.is_error() || result.ok().message_ids.empty()) {
+      return promise.set_value(std::move(info));
+    }
+    send_closure(actor_id, &MessagesManager::on_get_message_link_discussion_message, std::move(info),
+                 result.ok().dialog_id, std::move(promise));
+  });
 
   td_->create_handler<GetDiscussionMessageQuery>(std::move(query_promise))
       ->send(dialog_id, info.message_id, DialogId(m->reply_info.channel_id), MessageId());
@@ -28316,21 +28308,25 @@ void MessagesManager::send_update_message_send_succeeded(Dialog *d, MessageId ol
       make_tl_object<td_api::updateMessageSendSucceeded>(get_message_object(d->dialog_id, m), old_message_id.get()));
 }
 
-void MessagesManager::send_update_message_content(DialogId dialog_id, Message *m, const char *source) {
+void MessagesManager::send_update_message_content(DialogId dialog_id, Message *m, bool is_message_in_dialog,
+                                                  const char *source) {
   Dialog *d = get_dialog(dialog_id);
   LOG_CHECK(d != nullptr) << "Send updateMessageContent in unknown " << dialog_id << " from " << source
                           << " with load count " << loaded_dialogs_.count(dialog_id);
-  send_update_message_content(d, m, source);
+  send_update_message_content(d, m, is_message_in_dialog, source);
 }
 
-void MessagesManager::send_update_message_content(const Dialog *d, Message *m, const char *source) {
+void MessagesManager::send_update_message_content(const Dialog *d, Message *m, bool is_message_in_dialog,
+                                                  const char *source) {
   CHECK(d != nullptr);
   CHECK(m != nullptr);
-  delete_bot_command_message_id(d->dialog_id, m->message_id);
-  try_add_bot_command_message_id(d->dialog_id, m);
-  reregister_message_reply(d, m);
-  update_message_max_reply_media_timestamp(d, m, false);  // because the message reply can be just registered
-  update_message_max_own_media_timestamp(d, m);
+  if (is_message_in_dialog) {
+    delete_bot_command_message_id(d->dialog_id, m->message_id);
+    try_add_bot_command_message_id(d->dialog_id, m);
+    reregister_message_reply(d, m);
+    update_message_max_reply_media_timestamp(d, m, false);  // because the message reply can be just registered
+    update_message_max_own_media_timestamp(d, m);
+  }
   send_update_message_content_impl(d->dialog_id, m, source);
 }
 
@@ -28839,7 +28835,7 @@ FullMessageId MessagesManager::on_send_message_success(int64 random_id, MessageI
     // dump_debug_message_op(d, 5);
   }
 
-  // imitation of update_message(d, sent_message.get(), std::move(new_message), &need_update_dialog_pos);
+  // imitation of update_message(d, sent_message.get(), std::move(new_message), &need_update_dialog_pos, false);
   if (date <= 0) {
     LOG(ERROR) << "Receive " << new_message_id << " in " << dialog_id << " with wrong date " << date << " from "
                << source;
@@ -28859,7 +28855,7 @@ FullMessageId MessagesManager::on_send_message_success(int64 random_id, MessageI
   // }
 
   if (merge_message_content_file_id(td_, sent_message->content.get(), new_file_id)) {
-    send_update_message_content(d, sent_message.get(), source);
+    send_update_message_content(d, sent_message.get(), false, source);
   }
 
   if (old_message_id.is_valid() && new_message_id < old_message_id && !can_overflow_message_id(dialog_id)) {
@@ -32285,7 +32281,7 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
         auto old_index_mask = get_message_index_mask(dialog_id, m) & INDEX_MASK_MASK;
         bool was_deleted = delete_active_live_location(dialog_id, m);
         auto old_file_ids = get_message_content_file_ids(m->content.get(), td_);
-        bool need_send_update = update_message(d, m, std::move(message), need_update_dialog_pos);
+        bool need_send_update = update_message(d, m, std::move(message), need_update_dialog_pos, true);
         if (!need_send_update) {
           LOG(INFO) << message_id << " in " << dialog_id << " is not changed";
         }
@@ -32892,7 +32888,7 @@ MessagesManager::Message *MessagesManager::add_scheduled_message_to_dialog(Dialo
       if (!message->from_database) {
         auto old_file_ids = get_message_content_file_ids(m->content.get(), td_);
         bool need_update_dialog_pos = false;
-        update_message(d, m, std::move(message), &need_update_dialog_pos);
+        update_message(d, m, std::move(message), &need_update_dialog_pos, true);
         CHECK(need_update_dialog_pos == false);
         change_message_files(dialog_id, m, old_file_ids);
       }
@@ -33351,7 +33347,7 @@ void MessagesManager::attach_message_to_next(Dialog *d, MessageId message_id, co
 }
 
 bool MessagesManager::update_message(Dialog *d, Message *old_message, unique_ptr<Message> new_message,
-                                     bool *need_update_dialog_pos) {
+                                     bool *need_update_dialog_pos, bool is_message_in_dialog) {
   CHECK(d != nullptr);
   CHECK(old_message != nullptr);
   CHECK(new_message != nullptr);
@@ -33731,8 +33727,7 @@ bool MessagesManager::update_message(Dialog *d, Message *old_message, unique_ptr
   }
 
   if (update_message_content(dialog_id, old_message, std::move(new_message->content), true,
-                             message_id.is_yet_unsent() && new_message->edit_date == 0,
-                             get_message(d, message_id) != nullptr)) {
+                             message_id.is_yet_unsent() && new_message->edit_date == 0, is_message_in_dialog)) {
     need_send_update = true;
   }
 
@@ -33860,7 +33855,7 @@ bool MessagesManager::update_message_content(DialogId dialog_id, Message *old_me
   }
 
   if (need_update && need_send_update_message_content) {
-    send_update_message_content(dialog_id, old_message, "update_message_content");
+    send_update_message_content(dialog_id, old_message, is_message_in_dialog, "update_message_content");
   }
   return need_update;
 }
