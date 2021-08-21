@@ -1259,7 +1259,8 @@ pageBlockMap location:location zoom:int32 width:int32 height:int32 caption:pageB
 //@version Version of the instant view, currently can be 1 or 2
 //@is_rtl True, if the instant view must be shown from right to left
 //@is_full True, if the instant view contains the full page. A network request might be needed to get the full web page instant view
-webPageInstantView page_blocks:vector<PageBlock> view_count:int32 version:int32 is_rtl:Bool is_full:Bool = WebPageInstantView;
+//@feedback_link An internal link to be opened to leave feedback about the instant view
+webPageInstantView page_blocks:vector<PageBlock> view_count:int32 version:int32 is_rtl:Bool is_full:Bool feedback_link:InternalLinkType = WebPageInstantView;
 
 
 //@description Describes a web page preview
@@ -3057,8 +3058,8 @@ internalLinkTypeBotStartInGroup bot_username:string start_parameter:string = Int
 //@description The link is a link to the change phone number section of the app
 internalLinkTypeChangePhoneNumber = InternalLinkType;
 
-//@description The link is a chat invite link. Call checkChatInviteLink to process the link
-internalLinkTypeChatInvite = InternalLinkType;
+//@description The link is a chat invite link. Call checkChatInviteLink with the given invite link to process the link @invite_link Internal representation of the invite link
+internalLinkTypeChatInvite invite_link:string = InternalLinkType;
 
 //@description The link is a link to the filter settings section of the app
 internalLinkTypeFilterSettings = InternalLinkType;
@@ -3070,14 +3071,14 @@ internalLinkTypeGame bot_username:string game_short_name:string = InternalLinkTy
 //@description The link is a link to a language pack. Call getLanguagePackInfo with the given language pack identifier to process the link @language_pack_id Language pack identifier
 internalLinkTypeLanguagePack language_pack_id:string = InternalLinkType;
 
-//@description The link is a link to a Telegram message. Call getMessageLinkInfo to process the link
-internalLinkTypeMessage = InternalLinkType;
+//@description The link is a link to a Telegram message. Call getMessageLinkInfo with the given URL to process the link @url URL to be passed to getMessageLinkInfo
+internalLinkTypeMessage url:string = InternalLinkType;
 
 //@description The link contains a message draft text. A share screen needs to be shown to the user, then the chosen chat should be open and the text should be added to the input field
 //@text Message draft text @contains_link True, if the first line of the text contains a link. If true, the input field needs to be focused and the text after the link should be selected
 internalLinkTypeMessageDraft text:formattedText contains_link:Bool = InternalLinkType;
 
-//@description The link contains a request of Telegram passport data. Call getPassportAuthorizationForm to process the link if the link was received outside of the app, otherwise ignore it
+//@description The link contains a request of Telegram passport data. Call getPassportAuthorizationForm with the given parameters to process the link if the link was received from outside of the app, otherwise ignore it
 //@bot_user_id User identifier of the service's bot @scope Telegram Passport element types requested by the service @public_key Service's public key @nonce Unique request identifier provided by the service
 //@callback_url An HTTP URL to open once the request is finished or canceled with the parameter tg_passport=success or tg_passport=cancel respectively. If empty, then the link tgbot{bot_user_id}://passport/success or tgbot{bot_user_id}://passport/cancel needs to be opened instead
 internalLinkTypePassportDataRequest bot_user_id:int32 scope:string public_key:string nonce:string callback_url:string = InternalLinkType;
@@ -3086,7 +3087,7 @@ internalLinkTypePassportDataRequest bot_user_id:int32 scope:string public_key:st
 //@hash Hash value from the link @phone_number Phone number value from the link
 internalLinkTypePhoneNumberConfirmation hash:string phone_number:string = InternalLinkType;
 
-//@description The link is a link to a proxy. Call addProxy to process the link and add the proxy
+//@description The link is a link to a proxy. Call addProxy with the given parameters to process the link and add the proxy
 //@server Proxy server IP address @port Proxy server port @type Type of the proxy
 internalLinkTypeProxy server:string port:int32 type:ProxyType = InternalLinkType;
 
@@ -3109,8 +3110,8 @@ internalLinkTypeTheme theme_name:string = InternalLinkType;
 //@description The link is a link to the theme settings section of the app
 internalLinkTypeThemeSettings = InternalLinkType;
 
-//@description The link is an unknown tg: link. Call getDeepLinkInfo to process the link
-internalLinkTypeUnknownDeepLink = InternalLinkType;
+//@description The link is an unknown tg: link. Call getDeepLinkInfo to process the link @link Link to be passed to getDeepLinkInfo
+internalLinkTypeUnknownDeepLink link:string = InternalLinkType;
 
 //@description The link is a link to a voice chat. Call searchPublicChat with the given chat username, and then joinGoupCall with the given invite hash to process the link
 //@chat_username Username of the chat with the voice chat @invite_hash If non-empty, invite hash to be used to join the voice chat without being muted by administrators
@@ -3246,7 +3247,7 @@ networkStatistics since_date:int32 entries:vector<NetworkStatisticsEntry> = Netw
 //@use_less_data_for_calls True, if "use less data for calls" option needs to be enabled
 autoDownloadSettings is_auto_download_enabled:Bool max_photo_file_size:int32 max_video_file_size:int32 max_other_file_size:int32 video_upload_bitrate:int32 preload_large_videos:Bool preload_next_audio:Bool use_less_data_for_calls:Bool = AutoDownloadSettings;
 
-//@description Contains auto-download settings presets for the user
+//@description Contains auto-download settings presets for the current user
 //@low Preset with lowest settings; supposed to be used by default when roaming
 //@medium Preset with medium settings; supposed to be used by default when using mobile data
 //@high Preset with highest settings; supposed to be used by default when connected on Wi-Fi
@@ -3924,7 +3925,7 @@ setDatabaseEncryptionKey new_encryption_key:bytes = Ok;
 //@description Returns the current state of 2-step verification
 getPasswordState = PasswordState;
 
-//@description Changes the password for the user. If a new recovery email address is specified, then the change will not be applied until the new recovery email address is confirmed
+//@description Changes the password for the current user. If a new recovery email address is specified, then the change will not be applied until the new recovery email address is confirmed
 //@old_password Previous password of the user @new_password New password of the user; may be empty to remove the password @new_hint New password hint; may be empty @set_recovery_email_address Pass true if the recovery email address should be changed @new_recovery_email_address New recovery email address; may be empty
 setPassword old_password:string new_password:string new_hint:string set_recovery_email_address:Bool new_recovery_email_address:string = PasswordState;
 
@@ -4034,7 +4035,7 @@ searchPublicChat username:string = Chat;
 //@description Searches public chats by looking for specified query in their username and title. Currently only private chats, supergroups and channels can be public. Returns a meaningful number of results. Returns nothing if the length of the searched username prefix is less than 5. Excludes private chats with contacts and chats from the chat list from the results @query Query to search for
 searchPublicChats query:string = Chats;
 
-//@description Searches for the specified query in the title and username of already known chats, this is an offline request. Returns chats in the order seen in the main chat list @query Query to search for. If the query is empty, returns up to 20 recently found chats @limit The maximum number of chats to be returned
+//@description Searches for the specified query in the title and username of already known chats, this is an offline request. Returns chats in the order seen in the main chat list @query Query to search for. If the query is empty, returns up to 50 recently found chats @limit The maximum number of chats to be returned
 searchChats query:string limit:int32 = Chats;
 
 //@description Searches for the specified query in the title and username of already known chats via request to the server. Returns chats in the order seen in the main chat list @query Query to search for @limit The maximum number of chats to be returned
@@ -4583,7 +4584,7 @@ setChatMemberStatus chat_id:int53 member_id:MessageSender status:ChatMemberStatu
 //@chat_id Chat identifier
 //@member_id Member identifier
 //@banned_until_date Point in time (Unix timestamp) when the user will be unbanned; 0 if never. If the user is banned for more than 366 days or for less than 30 seconds from the current time, the user is considered to be banned forever. Ignored in basic groups
-//@revoke_messages Pass true to delete all messages in the chat for the user. Always true for supergroups and channels
+//@revoke_messages Pass true to delete all messages in the chat for the user that is being removed. Always true for supergroups and channels
 banChatMember chat_id:int53 member_id:MessageSender banned_until_date:int32 revoke_messages:Bool = Ok;
 
 //@description Checks whether the current session can be used to transfer a chat ownership to another user
@@ -5037,7 +5038,7 @@ setProfilePhoto photo:InputChatPhoto = Ok;
 //@description Deletes a profile photo @profile_photo_id Identifier of the profile photo to delete
 deleteProfilePhoto profile_photo_id:int64 = Ok;
 
-//@description Changes the first and last name of the current user @first_name The new value of the first name for the user; 1-64 characters @last_name The new value of the optional last name for the user; 0-64 characters
+//@description Changes the first and last name of the current user @first_name The new value of the first name for the current user; 1-64 characters @last_name The new value of the optional last name for the current user; 0-64 characters
 setName first_name:string last_name:string = Ok;
 
 //@description Changes the bio of the current user @bio The new value of the user bio; 0-70 characters without line feeds
@@ -5053,7 +5054,7 @@ setLocation location:location = Ok;
 //@phone_number The new phone number of the user in international format @settings Settings for the authentication of the user's phone number
 changePhoneNumber phone_number:string settings:phoneNumberAuthenticationSettings = AuthenticationCodeInfo;
 
-//@description Re-sends the authentication code sent to confirm a new phone number for the user. Works only if the previously received authenticationCodeInfo next_code_type was not null and the server-specified timeout has passed
+//@description Re-sends the authentication code sent to confirm a new phone number for the current user. Works only if the previously received authenticationCodeInfo next_code_type was not null and the server-specified timeout has passed
 resendChangePhoneNumberCode = AuthenticationCodeInfo;
 
 //@description Checks the authentication code sent to confirm a new phone number of the user @code Verification code received by SMS, phone call or flash call
