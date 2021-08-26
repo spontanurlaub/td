@@ -10097,7 +10097,7 @@ bool MessagesManager::update_message_is_pinned(Dialog *d, Message *m, bool is_pi
                make_tl_object<td_api::updateMessageIsPinned>(d->dialog_id.get(), m->message_id.get(), is_pinned));
   if (is_pinned) {
     if (d->is_last_pinned_message_id_inited && m->message_id > d->last_pinned_message_id) {
-      on_update_dialog_last_pinned_message_id(d->dialog_id, m->message_id);
+      set_dialog_last_pinned_message_id(d, m->message_id);
     }
   } else {
     if (d->is_last_pinned_message_id_inited && m->message_id == d->last_pinned_message_id) {
@@ -15273,7 +15273,7 @@ unique_ptr<MessagesManager::Message> MessagesManager::do_delete_scheduled_messag
                                                                                   bool is_permanently_deleted,
                                                                                   const char *source) {
   CHECK(d != nullptr);
-  CHECK(message_id.is_valid_scheduled());
+  LOG_CHECK(message_id.is_valid_scheduled()) << d->dialog_id << ' ' << message_id << ' ' << source;
 
   unique_ptr<Message> *v = treap_find_message(&d->scheduled_messages, message_id);
   if (*v == nullptr) {
@@ -16973,7 +16973,7 @@ void MessagesManager::process_discussion_message_impl(
   MessageId top_message_id;
   for (auto &message : result->messages_) {
     auto full_message_id =
-        on_get_message(std::move(message), false, true, false, false, false, "process_discussion_message");
+        on_get_message(std::move(message), false, true, false, false, false, "process_discussion_message_impl");
     if (full_message_id.get_message_id().is_valid()) {
       CHECK(full_message_id.get_dialog_id() == expected_dialog_id);
       message_thread_info.message_ids.push_back(full_message_id.get_message_id());
@@ -29634,19 +29634,6 @@ void MessagesManager::on_update_dialog_last_pinned_message_id(DialogId dialog_id
     return;
   }
 
-  if (d->last_pinned_message_id == pinned_message_id) {
-    LOG(INFO) << "Pinned message in " << d->dialog_id << " is still " << pinned_message_id;
-    if (!d->is_last_pinned_message_id_inited) {
-      d->is_last_pinned_message_id_inited = true;
-      on_dialog_updated(dialog_id, "on_update_dialog_last_pinned_message_id");
-    }
-    Message *m = get_message_force(d, pinned_message_id, "on_update_dialog_last_pinned_message_id");
-    if (m != nullptr && update_message_is_pinned(d, m, true, "on_update_dialog_last_pinned_message_id")) {
-      on_message_changed(d, m, true, "on_update_dialog_last_pinned_message_id");
-    }
-    return;
-  }
-
   set_dialog_last_pinned_message_id(d, pinned_message_id);
 }
 
@@ -29657,7 +29644,7 @@ void MessagesManager::set_dialog_last_pinned_message_id(Dialog *d, MessageId pin
     on_message_changed(d, m, true, "set_dialog_last_pinned_message_id");
   }
 
-  if (d->last_pinned_message_id == pinned_message_id) {
+  if (d->is_last_pinned_message_id_inited && d->last_pinned_message_id == pinned_message_id) {
     return;
   }
   d->last_pinned_message_id = pinned_message_id;
@@ -32712,7 +32699,7 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
   if (*need_update && m->message_id.is_server() && message_content_type == MessageContentType::PinMessage) {
     auto pinned_message_id = get_message_content_pinned_message_id(m->content.get());
     if (d->is_last_pinned_message_id_inited && pinned_message_id > d->last_pinned_message_id) {
-      on_update_dialog_last_pinned_message_id(dialog_id, pinned_message_id);
+      set_dialog_last_pinned_message_id(d, pinned_message_id);
     }
   }
 
@@ -35623,12 +35610,11 @@ void MessagesManager::run_after_channel_difference(DialogId dialog_id, Promise<U
   CHECK(dialog_id.get_type() == DialogType::Channel);
   CHECK(have_input_peer(dialog_id, AccessRights::Read));
 
-  const Dialog *d = get_dialog(dialog_id);
-  CHECK(d != nullptr);
-
   run_after_get_channel_difference_[dialog_id].push_back(std::move(promise));
 
-  get_channel_difference(dialog_id, d->pts, true, "run_after_channel_difference");
+  const Dialog *d = get_dialog(dialog_id);
+  get_channel_difference(dialog_id, d == nullptr ? load_channel_pts(dialog_id) : d->pts, true,
+                         "run_after_channel_difference");
 }
 
 bool MessagesManager::running_get_channel_difference(DialogId dialog_id) const {
