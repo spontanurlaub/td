@@ -67,6 +67,7 @@ class SecureManager;
 class SecretChatsManager;
 class StickersManager;
 class StorageManager;
+class ThemeManager;
 class TopDialogManager;
 class UpdatesManager;
 class VideoNotesManager;
@@ -171,6 +172,8 @@ class Td final : public NetQueryCallback {
   ActorOwn<PollManager> poll_manager_actor_;
   unique_ptr<StickersManager> stickers_manager_;
   ActorOwn<StickersManager> stickers_manager_actor_;
+  unique_ptr<ThemeManager> theme_manager_;
+  ActorOwn<ThemeManager> theme_manager_actor_;
   unique_ptr<UpdatesManager> updates_manager_;
   ActorOwn<UpdatesManager> updates_manager_actor_;
   unique_ptr<WebPagesManager> web_pages_manager_;
@@ -512,6 +515,10 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, const td_api::getMessages &request);
 
+  void on_request(uint64 id, const td_api::getChatSponsoredMessages &request);
+
+  void on_request(uint64 id, const td_api::viewSponsoredMessage &request);
+
   void on_request(uint64 id, const td_api::getMessageLink &request);
 
   void on_request(uint64 id, const td_api::getMessageEmbeddingCode &request);
@@ -545,6 +552,8 @@ class Td final : public NetQueryCallback {
   void on_request(uint64 id, td_api::getTopChats &request);
 
   void on_request(uint64 id, const td_api::removeTopChat &request);
+
+  void on_request(uint64 id, const td_api::loadChats &request);
 
   void on_request(uint64 id, const td_api::getChats &request);
 
@@ -762,7 +771,7 @@ class Td final : public NetQueryCallback {
 
   void on_request(uint64 id, const td_api::discardGroupCall &request);
 
-  void on_request(uint64 id, const td_api::getGroupCallStreamSegment &request);
+  void on_request(uint64 id, td_api::getGroupCallStreamSegment &request);
 
   void on_request(uint64 id, const td_api::upgradeBasicGroupChatToSupergroupChat &request);
 
@@ -789,6 +798,8 @@ class Td final : public NetQueryCallback {
   void on_request(uint64 id, const td_api::setChatMessageTtlSetting &request);
 
   void on_request(uint64 id, const td_api::setChatPermissions &request);
+
+  void on_request(uint64 id, td_api::setChatTheme &request);
 
   void on_request(uint64 id, td_api::setChatDraftMessage &request);
 
@@ -1161,6 +1172,8 @@ class Td final : public NetQueryCallback {
   void on_request(uint64 id, const td_api::removeBackground &request);
 
   void on_request(uint64 id, const td_api::resetBackgrounds &request);
+
+  void on_request(uint64 id, const td_api::getChatThemes &request);
 
   void on_request(uint64 id, td_api::getRecentlyVisitedTMeUrls &request);
 
