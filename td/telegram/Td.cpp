@@ -2846,23 +2846,6 @@ class GetSupportUserRequest final : public RequestActor<> {
   }
 };
 
-class GetBackgroundsRequest final : public RequestOnceActor {
-  bool for_dark_theme_;
-
-  void do_run(Promise<Unit> &&promise) final {
-    td->background_manager_->get_backgrounds(std::move(promise));
-  }
-
-  void do_send_result() final {
-    send_result(td->background_manager_->get_backgrounds_object(for_dark_theme_));
-  }
-
- public:
-  GetBackgroundsRequest(ActorShared<Td> td, uint64 request_id, bool for_dark_theme)
-      : RequestOnceActor(std::move(td), request_id), for_dark_theme_(for_dark_theme) {
-  }
-};
-
 class SearchBackgroundRequest final : public RequestActor<> {
   string name_;
 
@@ -2907,20 +2890,6 @@ class SetBackgroundRequest final : public RequestActor<> {
       , input_background_(std::move(input_background))
       , background_type_(std::move(background_type))
       , for_dark_theme_(for_dark_theme) {
-  }
-};
-
-class GetChatThemesRequest final : public RequestOnceActor {
-  void do_run(Promise<Unit> &&promise) final {
-    td->theme_manager_->get_chat_themes(std::move(promise));
-  }
-
-  void do_send_result() final {
-    send_result(td->theme_manager_->get_chat_themes_object());
-  }
-
- public:
-  GetChatThemesRequest(ActorShared<Td> td, uint64 request_id) : RequestOnceActor(std::move(td), request_id) {
   }
 };
 
@@ -8055,7 +8024,8 @@ void Td::on_request(uint64 id, const td_api::getSupportUser &request) {
 
 void Td::on_request(uint64 id, const td_api::getBackgrounds &request) {
   CHECK_IS_USER();
-  CREATE_REQUEST(GetBackgroundsRequest, request.for_dark_theme_);
+  CREATE_REQUEST_PROMISE();
+  background_manager_->get_backgrounds(request.for_dark_theme_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::getBackgroundUrl &request) {
@@ -8095,7 +8065,8 @@ void Td::on_request(uint64 id, const td_api::resetBackgrounds &request) {
 
 void Td::on_request(uint64 id, const td_api::getChatThemes &request) {
   CHECK_IS_USER();
-  CREATE_NO_ARGS_REQUEST(GetChatThemesRequest);
+  CREATE_REQUEST_PROMISE();
+  theme_manager_->get_chat_themes(std::move(promise));
 }
 
 void Td::on_request(uint64 id, td_api::getRecentlyVisitedTMeUrls &request) {
