@@ -577,6 +577,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::clearRecentlyFoundChats &request);
 
+  void on_request(uint64 id, const td_api::getRecentlyOpenedChats &request);
+
   void on_request(uint64 id, const td_api::getGroupsInCommon &request);
 
   void on_request(uint64 id, td_api::checkChatUsername &request);
@@ -1176,8 +1178,6 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::removeBackground &request);
 
   void on_request(uint64 id, const td_api::resetBackgrounds &request);
-
-  void on_request(uint64 id, const td_api::getChatThemes &request);
 
   void on_request(uint64 id, td_api::getRecentlyVisitedTMeUrls &request);
 
