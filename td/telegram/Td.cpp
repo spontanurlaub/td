@@ -3517,36 +3517,17 @@ void Td::on_config_option_updated(const string &name) {
   send_update(make_tl_object<td_api::updateOption>(name, G()->shared_config().get_option_value(name)));
 }
 
-tl_object_ptr<td_api::ConnectionState> Td::get_connection_state_object(StateManager::State state) {
-  switch (state) {
-    case StateManager::State::Empty:
-      UNREACHABLE();
-      return nullptr;
-    case StateManager::State::WaitingForNetwork:
-      return make_tl_object<td_api::connectionStateWaitingForNetwork>();
-    case StateManager::State::ConnectingToProxy:
-      return make_tl_object<td_api::connectionStateConnectingToProxy>();
-    case StateManager::State::Connecting:
-      return make_tl_object<td_api::connectionStateConnecting>();
-    case StateManager::State::Updating:
-      return make_tl_object<td_api::connectionStateUpdating>();
-    case StateManager::State::Ready:
-      return make_tl_object<td_api::connectionStateReady>();
-    default:
-      UNREACHABLE();
-      return nullptr;
-  }
-}
-
-void Td::on_connection_state_changed(StateManager::State new_state) {
+void Td::on_connection_state_changed(ConnectionState new_state) {
   if (new_state == connection_state_) {
     LOG(ERROR) << "State manager sends update about unchanged state " << static_cast<int32>(new_state);
     return;
   }
+  if (G()->close_flag()) {
+    return;
+  }
   connection_state_ = new_state;
 
-  send_closure(actor_id(this), &Td::send_update,
-               make_tl_object<td_api::updateConnectionState>(get_connection_state_object(connection_state_)));
+  send_closure(actor_id(this), &Td::send_update, get_update_connection_state_object(connection_state_));
 }
 
 void Td::start_up() {
@@ -4094,7 +4075,7 @@ void Td::init_options_and_network() {
    public:
     explicit StateManagerCallback(ActorShared<Td> td) : td_(std::move(td)) {
     }
-    bool on_state(StateManager::State state) final {
+    bool on_state(ConnectionState state) final {
       send_closure(td_, &Td::on_connection_state_changed, state);
       return td_.is_alive();
     }
@@ -4105,7 +4086,6 @@ void Td::init_options_and_network() {
   state_manager_ = create_actor<StateManager>("State manager", create_reference());
   send_closure(state_manager_, &StateManager::add_callback, make_unique<StateManagerCallback>(create_reference()));
   G()->set_state_manager(state_manager_.get());
-  connection_state_ = StateManager::State::Empty;
 
   VLOG(td_init) << "Create ConfigShared";
   G()->set_shared_config(td::make_unique<ConfigShared>(G()->td_db()->get_config_pmc_shared()));
@@ -4707,7 +4687,7 @@ void Td::on_request(uint64 id, const td_api::getCurrentState &request) {
     updates.push_back(td_api::make_object<td_api::updateAuthorizationState>(std::move(state)));
   }
 
-  updates.push_back(td_api::make_object<td_api::updateConnectionState>(get_connection_state_object(connection_state_)));
+  updates.push_back(get_update_connection_state_object(connection_state_));
 
   if (auth_manager_->is_authorized()) {
     contacts_manager_->get_current_state(updates);

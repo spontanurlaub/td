@@ -258,6 +258,7 @@ set(TL_DOTNET_SCHEME_SOURCE
 
 set(TDLIB_SOURCE
   td/mtproto/AuthData.cpp
+  td/mtproto/ConnectionManager.cpp
   td/mtproto/DhHandshake.cpp
   td/mtproto/Handshake.cpp
   td/mtproto/HandshakeActor.cpp
@@ -291,6 +292,7 @@ set(TDLIB_SOURCE
   td/telegram/ClientActor.cpp
   td/telegram/ConfigManager.cpp
   td/telegram/ConfigShared.cpp
+  td/telegram/ConnectionState.cpp
   td/telegram/Contact.cpp
   td/telegram/ContactsManager.cpp
   td/telegram/CountryInfoManager.cpp
@@ -421,6 +423,7 @@ set(TDLIB_SOURCE
 
   td/mtproto/AuthData.h
   td/mtproto/AuthKey.h
+  td/mtproto/ConnectionManager.h
   td/mtproto/CryptoStorer.h
   td/mtproto/DhCallback.h
   td/mtproto/DhHandshake.h
@@ -467,6 +470,7 @@ set(TDLIB_SOURCE
   td/telegram/ClientActor.h
   td/telegram/ConfigManager.h
   td/telegram/ConfigShared.h
+  td/telegram/ConnectionState.h
   td/telegram/Contact.h
   td/telegram/ContactsManager.h
   td/telegram/CountryInfoManager.h

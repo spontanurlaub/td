@@ -3687,6 +3687,7 @@ class SendScreenshotNotificationQuery final : public Td::ResultHandler {
 class SetTypingQuery final : public Td::ResultHandler {
   Promise<Unit> promise_;
   DialogId dialog_id_;
+  int32 generation_ = 0;
 
  public:
   explicit SetTypingQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
@@ -3704,6 +3705,7 @@ class SetTypingQuery final : public Td::ResultHandler {
     auto net_query = G()->net_query_creator().create(telegram_api::messages_setTyping(
         flags, std::move(input_peer), message_id.get_server_message_id().get(), std::move(action)));
     auto result = net_query.get_weak();
+    generation_ = result.generation();
     send_query(std::move(net_query));
     return result;
   }
@@ -3715,8 +3717,9 @@ class SetTypingQuery final : public Td::ResultHandler {
     }
 
     // ignore result
-
     promise_.set_value(Unit());
+
+    send_closure_later(G()->messages_manager(), &MessagesManager::after_set_typing_query, dialog_id_, generation_);
   }
 
   void on_error(uint64 id, Status status) final {
@@ -3728,6 +3731,8 @@ class SetTypingQuery final : public Td::ResultHandler {
       LOG(INFO) << "Receive error for set typing: " << status;
     }
     promise_.set_error(std::move(status));
+
+    send_closure_later(G()->messages_manager(), &MessagesManager::after_set_typing_query, dialog_id_, generation_);
   }
 };
 
@@ -10260,7 +10265,7 @@ void MessagesManager::delete_sent_message_from_server(DialogId dialog_id, Messag
   LOG(INFO) << "Delete already deleted sent " << message_id << " in " << dialog_id << " from server";
   Dialog *d = get_dialog(dialog_id);
   CHECK(d != nullptr);
-  if (get_message(d, message_id) != nullptr) {
+  if (get_message_force(d, message_id, "delete_sent_message_from_server") != nullptr) {
     delete_messages(dialog_id, {message_id}, true, Auto());
   } else {
     if (message_id.is_valid()) {
@@ -13537,6 +13542,7 @@ FullMessageId MessagesManager::on_get_message(MessageInfo &&message_info, bool f
       being_readded_message_id_ = FullMessageId();
       return FullMessageId();
     }
+    old_message_id = old_message->message_id;
 
     need_update = false;
 
@@ -16687,6 +16693,10 @@ void MessagesManager::on_failed_get_blocked_dialogs(int64 random_id) {
 
 bool MessagesManager::have_message_force(FullMessageId full_message_id, const char *source) {
   return get_message_force(full_message_id, source) != nullptr;
+}
+
+bool MessagesManager::have_message_force(Dialog *d, MessageId message_id, const char *source) {
+  return get_message_force(d, message_id, source) != nullptr;
 }
 
 MessagesManager::Message *MessagesManager::get_message(FullMessageId full_message_id) {
@@ -27988,7 +27998,7 @@ bool MessagesManager::add_new_message_notification(Dialog *d, Message *m, bool f
   if (is_pinned) {
     auto message_id = get_message_content_pinned_message_id(m->content.get());
     if (message_id.is_valid() &&
-        !have_message_force({d->dialog_id, message_id},
+        !have_message_force(d, message_id,
                             force ? "add_new_message_notification force" : "add_new_message_notification not force")) {
       missing_pinned_message_id = message_id;
     }
@@ -30599,6 +30609,14 @@ void MessagesManager::send_dialog_action(DialogId dialog_id, MessageId top_threa
           ->send(dialog_id, std::move(input_peer), top_thread_message_id, action.get_input_send_message_action());
 }
 
+void MessagesManager::after_set_typing_query(DialogId dialog_id, int32 generation) {
+  auto it = set_typing_query_.find(dialog_id);
+  CHECK(it != set_typing_query_.end());
+  if (!it->second.is_alive() || it->second.generation() == generation) {
+    set_typing_query_.erase(it);
+  }
+}
+
 void MessagesManager::on_send_dialog_action_timeout(DialogId dialog_id) {
   LOG(INFO) << "Receive send_chat_action timeout in " << dialog_id;
   Dialog *d = get_dialog(dialog_id);
@@ -32339,30 +32357,27 @@ MessagesManager::Message *MessagesManager::add_message_to_dialog(Dialog *d, uniq
   if (*need_update || (!d->last_new_message_id.is_valid() && !message_id.is_yet_unsent() && from_update)) {
     auto pinned_message_id = get_message_content_pinned_message_id(message->content.get());
     if (pinned_message_id.is_valid() && pinned_message_id < message_id &&
-        have_message_force({dialog_id, pinned_message_id}, "preload pinned message")) {
+        have_message_force(d, pinned_message_id, "preload pinned message")) {
       LOG(INFO) << "Preloaded pinned " << pinned_message_id << " from database";
     }
 
     if (d->pinned_message_notification_message_id.is_valid() &&
         d->pinned_message_notification_message_id != message_id &&
-        have_message_force({dialog_id, d->pinned_message_notification_message_id},
-                           "preload previously pinned message")) {
+        have_message_force(d, d->pinned_message_notification_message_id, "preload previously pinned message")) {
       LOG(INFO) << "Preloaded previously pinned " << d->pinned_message_notification_message_id << " from database";
     }
   }
   if (from_update && message->top_thread_message_id.is_valid() && message->top_thread_message_id != message_id &&
-      message_id.is_server() &&
-      have_message_force({dialog_id, message->top_thread_message_id}, "preload top reply message")) {
+      message_id.is_server() && have_message_force(d, message->top_thread_message_id, "preload top reply message")) {
     LOG(INFO) << "Preloaded top thread " << message->top_thread_message_id << " from database";
 
     Message *top_m = get_message(d, message->top_thread_message_id);
     CHECK(top_m != nullptr);
-    if (is_active_message_reply_info(dialog_id, top_m->reply_info) && is_discussion_message(dialog_id, top_m) &&
-        have_message_force({top_m->forward_info->from_dialog_id, top_m->forward_info->from_message_id},
-                           "preload discussed message")) {
-      LOG(INFO) << "Preloaded discussed "
-                << FullMessageId{top_m->forward_info->from_dialog_id, top_m->forward_info->from_message_id}
-                << " from database";
+    if (is_active_message_reply_info(dialog_id, top_m->reply_info) && is_discussion_message(dialog_id, top_m)) {
+      FullMessageId top_full_message_id{top_m->forward_info->from_dialog_id, top_m->forward_info->from_message_id};
+      if (have_message_force(top_full_message_id, "preload discussed message")) {
+        LOG(INFO) << "Preloaded discussed " << top_full_message_id << " from database";
+      }
     }
   }
 
@@ -33349,7 +33364,9 @@ bool MessagesManager::update_message(Dialog *d, Message *old_message, unique_ptr
   CHECK(d != nullptr);
   CHECK(old_message != nullptr);
   CHECK(new_message != nullptr);
-  CHECK(old_message->message_id == new_message->message_id);
+  LOG_CHECK(old_message->message_id == new_message->message_id)
+      << d->dialog_id << ' ' << old_message->message_id << ' ' << new_message->message_id << ' '
+      << is_message_in_dialog;
   CHECK(old_message->random_y == new_message->random_y);
   CHECK(need_update_dialog_pos != nullptr);
 
