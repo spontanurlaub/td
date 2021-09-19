@@ -17,6 +17,7 @@
 #include "td/telegram/Contact.h"
 #include "td/telegram/ContactsManager.h"
 #include "td/telegram/Dependencies.h"
+#include "td/telegram/DialogAction.h"
 #include "td/telegram/DialogParticipant.h"
 #include "td/telegram/Document.h"
 #include "td/telegram/DocumentsManager.h"
@@ -3969,9 +3970,9 @@ unique_ptr<MessageContent> get_secret_message_content(
       if (!clean_input_string(message_contact->last_name_)) {
         message_contact->last_name_.clear();
       }
-      return make_unique<MessageContact>(
-          Contact(std::move(message_contact->phone_number_), std::move(message_contact->first_name_),
-                  std::move(message_contact->last_name_), string(), UserId(message_contact->user_id_)));
+      return make_unique<MessageContact>(Contact(std::move(message_contact->phone_number_),
+                                                 std::move(message_contact->first_name_),
+                                                 std::move(message_contact->last_name_), string(), UserId()));
     }
     case secret_api::decryptedMessageMediaWebPage::ID: {
       auto media_web_page = move_tl_object_as<secret_api::decryptedMessageMediaWebPage>(media);
@@ -5300,6 +5301,35 @@ string get_message_content_search_text(const Td *td, const MessageContent *conte
   }
 }
 
+void get_message_content_animated_emoji_click_sticker(const MessageContent *content, FullMessageId full_message_id,
+                                                      Td *td, Promise<td_api::object_ptr<td_api::sticker>> &&promise) {
+  if (content->get_type() != MessageContentType::Text) {
+    return promise.set_error(Status::Error(400, "Message is not an animated emoji message"));
+  }
+
+  auto &text = static_cast<const MessageText *>(content)->text;
+  if (!text.entities.empty()) {
+    return promise.set_error(Status::Error(400, "Message is not an animated emoji message"));
+  }
+  td->stickers_manager_->get_animated_emoji_click_sticker(text.text, full_message_id, std::move(promise));
+}
+
+void on_message_content_animated_emoji_clicked(const MessageContent *content, FullMessageId full_message_id, Td *td,
+                                               string emoji, string data) {
+  if (content->get_type() != MessageContentType::Text) {
+    return;
+  }
+
+  auto &text = static_cast<const MessageText *>(content)->text;
+  if (!text.entities.empty() || remove_emoji_modifiers(text.text) != emoji) {
+    return;
+  }
+  auto error = td->stickers_manager_->on_animated_emoji_message_clicked(emoji, full_message_id, data);
+  if (error.is_error()) {
+    LOG(WARNING) << "Failed to process animated emoji click with data \"" << data << "\": " << error;
+  }
+}
+
 bool need_reget_message_content(const MessageContent *content) {
   CHECK(content != nullptr);
   switch (content->get_type()) {
@@ -5525,6 +5555,14 @@ void on_sent_message_content(Td *td, const MessageContent *content) {
 
 StickerSetId add_sticker_set(Td *td, tl_object_ptr<telegram_api::InputStickerSet> &&input_sticker_set) {
   return td->stickers_manager_->add_sticker_set(std::move(input_sticker_set));
+}
+
+bool is_unsent_animated_emoji_click(Td *td, DialogId dialog_id, const DialogAction &action) {
+  auto emoji = action.get_enjoying_animations_emoji();
+  if (emoji.empty()) {
+    return false;
+  }
+  return !td->stickers_manager_->is_sent_animated_emoji_click(dialog_id, emoji);
 }
 
 void on_dialog_used(TopDialogCategory category, DialogId dialog_id, int32 date) {

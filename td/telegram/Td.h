@@ -11,18 +11,17 @@
 #include "td/telegram/net/MtprotoHeader.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/NetQueryStats.h"
+#include "td/telegram/td_api.h"
 #include "td/telegram/TdCallback.h"
 #include "td/telegram/TdParameters.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/TermsOfService.h"
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
+#include "td/db/DbKey.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/Timeout.h"
-
-#include "td/db/DbKey.h"
 
 #include "td/utils/buffer.h"
 #include "td/utils/common.h"
@@ -244,7 +243,7 @@ class Td final : public Actor {
   static td_api::object_ptr<td_api::Object> static_request(td_api::object_ptr<td_api::Function> function);
 
  private:
-  static constexpr const char *TDLIB_VERSION = "1.7.7";
+  static constexpr const char *TDLIB_VERSION = "1.7.8";
   static constexpr int64 ONLINE_ALARM_ID = 0;
   static constexpr int64 PING_SERVER_ALARM_ID = -1;
   static constexpr int32 PING_SERVER_TIMEOUT = 300;
@@ -516,6 +515,8 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getMessageThread &request);
 
+  void on_request(uint64 id, const td_api::getMessageViewers &request);
+
   void on_request(uint64 id, const td_api::getMessages &request);
 
   void on_request(uint64 id, const td_api::getChatSponsoredMessages &request);
@@ -597,6 +598,8 @@ class Td final : public Actor {
   void on_request(uint64 id, const td_api::viewMessages &request);
 
   void on_request(uint64 id, const td_api::openMessageContent &request);
+
+  void on_request(uint64 id, const td_api::clickAnimatedEmojiMessage &request);
 
   void on_request(uint64 id, const td_api::getInternalLinkType &request);
 

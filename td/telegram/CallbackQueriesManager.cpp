@@ -6,12 +6,6 @@
 //
 #include "td/telegram/CallbackQueriesManager.h"
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
-#include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
-
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ContactsManager.h"
@@ -20,6 +14,11 @@
 #include "td/telegram/MessagesManager.h"
 #include "td/telegram/PasswordManager.h"
 #include "td/telegram/Td.h"
+#include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
+
+#include "td/actor/actor.h"
+#include "td/actor/PromiseFuture.h"
 
 #include "td/utils/common.h"
 #include "td/utils/logging.h"
@@ -202,7 +201,7 @@ void CallbackQueriesManager::on_new_query(int32 flags, int64 callback_query_id, 
 
 void CallbackQueriesManager::on_new_inline_query(
     int32 flags, int64 callback_query_id, UserId sender_user_id,
-    tl_object_ptr<telegram_api::inputBotInlineMessageID> &&inline_message_id, BufferSlice &&data, int64 chat_instance,
+    tl_object_ptr<telegram_api::InputBotInlineMessageID> &&inline_message_id, BufferSlice &&data, int64 chat_instance,
     string &&game_short_name) {
   if (!sender_user_id.is_valid()) {
     LOG(ERROR) << "Receive new callback query from invalid " << sender_user_id;

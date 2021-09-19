@@ -6,10 +6,6 @@
 //
 #include "td/telegram/ContactsManager.h"
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-#include "td/telegram/telegram_api.hpp"
-
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/ConfigShared.h"
@@ -43,16 +39,18 @@
 #include "td/telegram/StickersManager.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/TdDb.h"
+#include "td/telegram/TdParameters.h"
+#include "td/telegram/telegram_api.hpp"
 #include "td/telegram/UpdatesManager.h"
 #include "td/telegram/Version.h"
-
-#include "td/actor/PromiseFuture.h"
-#include "td/actor/SleepActor.h"
 
 #include "td/db/binlog/BinlogEvent.h"
 #include "td/db/binlog/BinlogHelper.h"
 #include "td/db/SqliteKeyValue.h"
 #include "td/db/SqliteKeyValueAsync.h"
+
+#include "td/actor/PromiseFuture.h"
+#include "td/actor/SleepActor.h"
 
 #include "td/utils/algorithm.h"
 #include "td/utils/base64.h"
@@ -393,7 +391,7 @@ class ResetWebAuthorizationsQuery final : public Td::ResultHandler {
 
 class GetContactsQuery final : public Td::ResultHandler {
  public:
-  void send(int32 hash) {
+  void send(int64 hash) {
     LOG(INFO) << "Reload contacts with hash " << hash;
     send_query(G()->net_query_creator().create(telegram_api::contacts_getContacts(hash)));
   }
@@ -2715,7 +2713,7 @@ class GetChatsQuery final : public Td::ResultHandler {
   explicit GetChatsQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(vector<int32> &&chat_ids) {
+  void send(vector<int64> &&chat_ids) {
     send_query(G()->net_query_creator().create(telegram_api::messages_getChats(std::move(chat_ids))));
   }
 
@@ -2975,7 +2973,7 @@ class GetChannelAdministratorsQuery final : public Td::ResultHandler {
   explicit GetChannelAdministratorsQuery(Promise<Unit> &&promise) : promise_(std::move(promise)) {
   }
 
-  void send(ChannelId channel_id, int32 hash) {
+  void send(ChannelId channel_id, int64 hash) {
     auto input_channel = td->contacts_manager_->get_input_channel(channel_id);
     if (input_channel == nullptr) {
       return promise_.set_error(Status::Error(3, "Supergroup not found"));
@@ -3433,12 +3431,12 @@ void ContactsManager::tear_down() {
 UserId ContactsManager::load_my_id() {
   auto id_string = G()->td_db()->get_binlog_pmc()->get("my_id");
   if (!id_string.empty()) {
-    UserId my_id(to_integer<int32>(id_string));
+    UserId my_id(to_integer<int64>(id_string));
     if (my_id.is_valid()) {
       return my_id;
     }
 
-    my_id = UserId(to_integer<int32>(Slice(id_string).substr(5)));
+    my_id = UserId(to_integer<int64>(Slice(id_string).substr(5)));
     if (my_id.is_valid()) {
       G()->td_db()->get_binlog_pmc()->set("my_id", to_string(my_id.get()));
       return my_id;
@@ -3456,7 +3454,7 @@ void ContactsManager::on_user_online_timeout_callback(void *contacts_manager_ptr
 
   auto contacts_manager = static_cast<ContactsManager *>(contacts_manager_ptr);
   send_closure_later(contacts_manager->actor_id(contacts_manager), &ContactsManager::on_user_online_timeout,
-                     UserId(narrow_cast<int32>(user_id_long)));
+                     UserId(user_id_long));
 }
 
 void ContactsManager::on_user_online_timeout(UserId user_id) {
@@ -3482,7 +3480,7 @@ void ContactsManager::on_channel_unban_timeout_callback(void *contacts_manager_p
 
   auto contacts_manager = static_cast<ContactsManager *>(contacts_manager_ptr);
   send_closure_later(contacts_manager->actor_id(contacts_manager), &ContactsManager::on_channel_unban_timeout,
-                     ChannelId(narrow_cast<int32>(channel_id_long)));
+                     ChannelId(channel_id_long));
 }
 
 void ContactsManager::on_channel_unban_timeout(ChannelId channel_id) {
@@ -3515,7 +3513,7 @@ void ContactsManager::on_user_nearby_timeout_callback(void *contacts_manager_ptr
 
   auto contacts_manager = static_cast<ContactsManager *>(contacts_manager_ptr);
   send_closure_later(contacts_manager->actor_id(contacts_manager), &ContactsManager::on_user_nearby_timeout,
-                     UserId(narrow_cast<int32>(user_id_long)));
+                     UserId(user_id_long));
 }
 
 void ContactsManager::on_user_nearby_timeout(UserId user_id) {
@@ -3544,7 +3542,7 @@ void ContactsManager::on_slow_mode_delay_timeout_callback(void *contacts_manager
 
   auto contacts_manager = static_cast<ContactsManager *>(contacts_manager_ptr);
   send_closure_later(contacts_manager->actor_id(contacts_manager), &ContactsManager::on_slow_mode_delay_timeout,
-                     ChannelId(narrow_cast<int32>(channel_id_long)));
+                     ChannelId(channel_id_long));
 }
 
 void ContactsManager::on_slow_mode_delay_timeout(ChannelId channel_id) {
@@ -3590,8 +3588,7 @@ void ContactsManager::on_channel_participant_cache_timeout_callback(void *contac
 
   auto contacts_manager = static_cast<ContactsManager *>(contacts_manager_ptr);
   send_closure_later(contacts_manager->actor_id(contacts_manager),
-                     &ContactsManager::on_channel_participant_cache_timeout,
-                     ChannelId(narrow_cast<int32>(channel_id_long)));
+                     &ContactsManager::on_channel_participant_cache_timeout, ChannelId(channel_id_long));
 }
 
 void ContactsManager::on_channel_participant_cache_timeout(ChannelId channel_id) {
@@ -5039,7 +5036,7 @@ ContactsManager::MyOnlineStatusInfo ContactsManager::get_my_online_status() cons
 }
 
 UserId ContactsManager::get_service_notifications_user_id() {
-  return UserId(777000);
+  return UserId(static_cast<int64>(777000));
 }
 
 UserId ContactsManager::add_service_notifications_user() {
@@ -5051,11 +5048,11 @@ UserId ContactsManager::add_service_notifications_user() {
 }
 
 UserId ContactsManager::get_replies_bot_user_id() {
-  return UserId(G()->is_test_dc() ? 708513 : 1271266957);
+  return UserId(static_cast<int64>(G()->is_test_dc() ? 708513 : 1271266957));
 }
 
 UserId ContactsManager::get_anonymous_bot_user_id() {
-  return UserId(G()->is_test_dc() ? 552888 : 1087968824);
+  return UserId(static_cast<int64>(G()->is_test_dc() ? 552888 : 1087968824));
 }
 
 UserId ContactsManager::add_anonymous_bot_user() {
@@ -5297,7 +5294,7 @@ void ContactsManager::load_contacts(Promise<Unit> &&promise) {
   }
 }
 
-int32 ContactsManager::get_contacts_hash() {
+int64 ContactsManager::get_contacts_hash() {
   if (!are_contacts_loaded_) {
     return 0;
   }
@@ -5310,11 +5307,11 @@ int32 ContactsManager::get_contacts_hash() {
     user_ids.insert(std::upper_bound(user_ids.begin(), user_ids.end(), my_id.get()), my_id.get());
   }
 
-  vector<uint32> numbers;
+  vector<uint64> numbers;
   numbers.reserve(user_ids.size() + 1);
   numbers.push_back(saved_contact_count_);
   for (auto user_id : user_ids) {
-    numbers.push_back(narrow_cast<uint32>(user_id));
+    numbers.push_back(user_id);
   }
   return get_vector_hash(numbers);
 }
@@ -5751,7 +5748,7 @@ std::pair<int32, vector<UserId>> ContactsManager::search_contacts(const string &
   vector<UserId> user_ids;
   user_ids.reserve(result.second.size());
   for (auto key : result.second) {
-    user_ids.emplace_back(narrow_cast<int32>(key));
+    user_ids.emplace_back(key);
   }
 
   promise.set_value(Unit());
@@ -6547,7 +6544,7 @@ void ContactsManager::set_channel_location(DialogId dialog_id, const DialogLocat
 }
 
 void ContactsManager::set_channel_slow_mode_delay(DialogId dialog_id, int32 slow_mode_delay, Promise<Unit> &&promise) {
-  std::vector<int32> allowed_slow_mode_delays{0, 10, 30, 60, 300, 900, 3600};
+  vector<int32> allowed_slow_mode_delays{0, 10, 30, 60, 300, 900, 3600};
   if (!td::contains(allowed_slow_mode_delays, slow_mode_delay)) {
     return promise.set_error(Status::Error(400, "Invalid new value for slow mode delay"));
   }
@@ -7918,7 +7915,7 @@ void ContactsManager::save_contacts_to_database() {
 
   LOG(INFO) << "Schedule save contacts to database";
   vector<UserId> user_ids =
-      transform(contacts_hints_.search_empty(100000).second, [](int64 key) { return UserId(narrow_cast<int32>(key)); });
+      transform(contacts_hints_.search_empty(100000).second, [](int64 key) { return UserId(key); });
 
   G()->td_db()->get_binlog_pmc()->set("saved_contact_count", to_string(saved_contact_count_));
   G()->td_db()->get_binlog()->force_sync(PromiseCreator::lambda([user_ids = std::move(user_ids)](Result<> result) {
@@ -13455,9 +13452,14 @@ void ContactsManager::on_update_chat_participant(ChatId chat_id, UserId user_id,
   }
   if (old_dialog_participant.dialog_id != new_dialog_participant.dialog_id || !old_dialog_participant.is_valid() ||
       !new_dialog_participant.is_valid()) {
-    LOG(ERROR) << "Receive wrong updateChannelParticipant: " << old_dialog_participant << " -> "
-               << new_dialog_participant;
+    LOG(ERROR) << "Receive wrong updateChatParticipant: " << old_dialog_participant << " -> " << new_dialog_participant;
     return;
+  }
+  if (new_dialog_participant.dialog_id == DialogId(get_my_id()) &&
+      new_dialog_participant.status != get_chat_status(chat_id) && false) {
+    LOG(ERROR) << "Have status " << get_chat_status(chat_id) << " after receiving updateChatParticipant in " << chat_id
+               << " by " << user_id << " at " << date << " from " << old_dialog_participant << " to "
+               << new_dialog_participant;
   }
 
   send_update_chat_member(DialogId(chat_id), user_id, date, invite_link, old_dialog_participant,
@@ -13504,6 +13506,12 @@ void ContactsManager::on_update_channel_participant(ChannelId channel_id, UserId
     channel_participants_.erase(channel_id);
   } else if (have_channel_participant_cache(channel_id)) {
     add_channel_participant_to_cache(channel_id, new_dialog_participant, true);
+  }
+  if (new_dialog_participant.dialog_id == DialogId(get_my_id()) &&
+      new_dialog_participant.status != get_channel_status(channel_id) && false) {
+    LOG(ERROR) << "Have status " << get_channel_status(channel_id) << " after receiving updateChannelParticipant in "
+               << channel_id << " by " << user_id << " at " << date << " from " << old_dialog_participant << " to "
+               << new_dialog_participant;
   }
 
   send_update_chat_member(DialogId(channel_id), user_id, date, invite_link, old_dialog_participant,
@@ -13991,7 +13999,7 @@ bool ContactsManager::get_chat(ChatId chat_id, int left_tries, Promise<Unit> &&p
     }
 
     if (left_tries > 1) {
-      td_->create_handler<GetChatsQuery>(std::move(promise))->send(vector<int32>{chat_id.get()});
+      td_->create_handler<GetChatsQuery>(std::move(promise))->send(vector<int64>{chat_id.get()});
       return false;
     }
 
@@ -14009,7 +14017,7 @@ void ContactsManager::reload_chat(ChatId chat_id, Promise<Unit> &&promise) {
   }
 
   // there is no much reason to combine different requests into one request
-  td_->create_handler<GetChatsQuery>(std::move(promise))->send(vector<int32>{chat_id.get()});
+  td_->create_handler<GetChatsQuery>(std::move(promise))->send(vector<int64>{chat_id.get()});
 }
 
 const ContactsManager::ChatFull *ContactsManager::get_chat_full(ChatId chat_id) const {
@@ -14102,6 +14110,14 @@ void ContactsManager::send_get_chat_full_query(ChatId chat_id, Promise<Unit> &&p
   });
 
   get_chat_full_queries_.add_query(chat_id.get(), std::move(send_query), std::move(promise));
+}
+
+int32 ContactsManager::get_chat_participant_count(ChatId chat_id) const {
+  auto c = get_chat(chat_id);
+  if (c == nullptr) {
+    return 0;
+  }
+  return c->participant_count;
 }
 
 bool ContactsManager::get_chat_is_active(ChatId chat_id) const {
@@ -15133,7 +15149,7 @@ vector<DialogAdministrator> ContactsManager::get_dialog_administrators(DialogId 
     promise.set_value(Unit());
     if (left_tries >= 2) {
       auto hash = get_vector_hash(transform(it->second, [](const DialogAdministrator &administrator) {
-        return static_cast<uint32>(administrator.get_user_id().get());
+        return static_cast<uint64>(administrator.get_user_id().get());
       }));
       reload_dialog_administrators(dialog_id, hash, Auto());  // update administrators cache
     }
@@ -15264,7 +15280,7 @@ void ContactsManager::on_update_dialog_administrators(DialogId dialog_id, vector
   }
 }
 
-void ContactsManager::reload_dialog_administrators(DialogId dialog_id, int32 hash, Promise<Unit> &&promise) {
+void ContactsManager::reload_dialog_administrators(DialogId dialog_id, int64 hash, Promise<Unit> &&promise) {
   switch (dialog_id.get_type()) {
     case DialogType::Chat:
       load_chat_full(dialog_id.get_chat_id(), false, std::move(promise), "reload_dialog_administrators");
@@ -15817,7 +15833,7 @@ td_api::object_ptr<td_api::updateUser> ContactsManager::get_update_unknown_user_
       false, "", false, false, false, td_api::make_object<td_api::userTypeUnknown>(), ""));
 }
 
-int32 ContactsManager::get_user_id_object(UserId user_id, const char *source) const {
+int64 ContactsManager::get_user_id_object(UserId user_id, const char *source) const {
   if (user_id.is_valid() && get_user(user_id) == nullptr && unknown_users_.count(user_id) == 0) {
     LOG(ERROR) << "Have no info about " << user_id << " from " << source;
     unknown_users_.insert(user_id);
@@ -15851,7 +15867,7 @@ tl_object_ptr<td_api::user> ContactsManager::get_user_object(UserId user_id, con
       std::move(type), u->language_code);
 }
 
-vector<int32> ContactsManager::get_user_ids_object(const vector<UserId> &user_ids, const char *source) const {
+vector<int64> ContactsManager::get_user_ids_object(const vector<UserId> &user_ids, const char *source) const {
   return transform(user_ids, [this, source](UserId user_id) { return get_user_id_object(user_id, source); });
 }
 
@@ -15885,7 +15901,7 @@ td_api::object_ptr<td_api::updateBasicGroup> ContactsManager::get_update_unknown
       chat_id.get(), 0, DialogParticipantStatus::Banned(0).get_chat_member_status_object(), true, 0));
 }
 
-int32 ContactsManager::get_basic_group_id_object(ChatId chat_id, const char *source) const {
+int64 ContactsManager::get_basic_group_id_object(ChatId chat_id, const char *source) const {
   if (chat_id.is_valid() && get_chat(chat_id) == nullptr && unknown_chats_.count(chat_id) == 0) {
     LOG(ERROR) << "Have no info about " << chat_id << " from " << source;
     unknown_chats_.insert(chat_id);
@@ -15939,7 +15955,7 @@ td_api::object_ptr<td_api::updateSupergroup> ContactsManager::get_update_unknown
       false, false, false, true, false, false, string(), false, false));
 }
 
-int32 ContactsManager::get_supergroup_id_object(ChannelId channel_id, const char *source) const {
+int64 ContactsManager::get_supergroup_id_object(ChannelId channel_id, const char *source) const {
   if (channel_id.is_valid() && get_channel(channel_id) == nullptr && unknown_channels_.count(channel_id) == 0) {
     LOG(ERROR) << "Have no info about " << channel_id << " received from " << source;
     unknown_channels_.insert(channel_id);
@@ -16057,7 +16073,7 @@ tl_object_ptr<td_api::chatInviteLinkInfo> ContactsManager::get_chat_invite_link_
   const DialogPhoto *photo = nullptr;
   DialogPhoto invite_link_photo;
   int32 participant_count = 0;
-  vector<int32> member_user_ids;
+  vector<int64> member_user_ids;
   bool is_public = false;
   bool is_member = false;
   td_api::object_ptr<td_api::ChatType> chat_type;

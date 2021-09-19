@@ -6,9 +6,6 @@
 //
 #pragma once
 
-#include "td/telegram/td_api.h"
-#include "td/telegram/telegram_api.h"
-
 #include "td/telegram/AccessRights.h"
 #include "td/telegram/BotCommand.h"
 #include "td/telegram/ChannelId.h"
@@ -33,6 +30,8 @@
 #include "td/telegram/SecretChatId.h"
 #include "td/telegram/StickerSetId.h"
 #include "td/telegram/SuggestedAction.h"
+#include "td/telegram/td_api.h"
+#include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
@@ -475,6 +474,7 @@ class ContactsManager final : public Actor {
   FileSourceId get_chat_full_file_source_id(ChatId chat_id);
   void reload_chat_full(ChatId chat_id, Promise<Unit> &&promise);
 
+  int32 get_chat_participant_count(ChatId channel_id) const;
   bool get_chat_is_active(ChatId chat_id) const;
   ChannelId get_chat_migrated_to_channel_id(ChatId chat_id) const;
   DialogParticipantStatus get_chat_status(ChatId chat_id) const;
@@ -532,23 +532,23 @@ class ContactsManager final : public Actor {
                                 string additional_query, int32 offset, int32 limit, int32 additional_limit,
                                 Promise<DialogParticipants> &&promise);
 
-  int32 get_user_id_object(UserId user_id, const char *source) const;
+  int64 get_user_id_object(UserId user_id, const char *source) const;
 
   tl_object_ptr<td_api::user> get_user_object(UserId user_id) const;
 
-  vector<int32> get_user_ids_object(const vector<UserId> &user_ids, const char *source) const;
+  vector<int64> get_user_ids_object(const vector<UserId> &user_ids, const char *source) const;
 
   tl_object_ptr<td_api::users> get_users_object(int32 total_count, const vector<UserId> &user_ids) const;
 
   tl_object_ptr<td_api::userFullInfo> get_user_full_info_object(UserId user_id) const;
 
-  int32 get_basic_group_id_object(ChatId chat_id, const char *source) const;
+  int64 get_basic_group_id_object(ChatId chat_id, const char *source) const;
 
   tl_object_ptr<td_api::basicGroup> get_basic_group_object(ChatId chat_id);
 
   tl_object_ptr<td_api::basicGroupFullInfo> get_basic_group_full_info_object(ChatId chat_id) const;
 
-  int32 get_supergroup_id_object(ChannelId channel_id, const char *source) const;
+  int64 get_supergroup_id_object(ChannelId channel_id, const char *source) const;
 
   tl_object_ptr<td_api::supergroup> get_supergroup_object(ChannelId channel_id) const;
 
@@ -1335,7 +1335,7 @@ class ContactsManager final : public Actor {
 
   int32 get_user_was_online(const User *u, UserId user_id) const;
 
-  int32 get_contacts_hash();
+  int64 get_contacts_hash();
 
   void update_contacts_hints(const User *u, UserId user_id, bool from_database);
 
@@ -1435,7 +1435,7 @@ class ContactsManager final : public Actor {
   void on_load_administrator_users_finished(DialogId dialog_id, vector<DialogAdministrator> administrators,
                                             Result<> result, Promise<Unit> promise);
 
-  void reload_dialog_administrators(DialogId dialog_id, int32 hash, Promise<Unit> &&promise);
+  void reload_dialog_administrators(DialogId dialog_id, int64 hash, Promise<Unit> &&promise);
 
   void remove_dialog_suggested_action(SuggestedAction action);
 
@@ -1466,7 +1466,8 @@ class ContactsManager final : public Actor {
 
   static tl_object_ptr<td_api::SecretChatState> get_secret_chat_state_object(SecretChatState state);
 
-  static td_api::object_ptr<td_api::updateSecretChat> get_update_unknown_secret_chat_object(SecretChatId user_id);
+  static td_api::object_ptr<td_api::updateSecretChat> get_update_unknown_secret_chat_object(
+      SecretChatId secret_chat_id);
 
   tl_object_ptr<td_api::secretChat> get_secret_chat_object(SecretChatId secret_chat_id, const SecretChat *secret_chat);
 

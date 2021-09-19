@@ -266,7 +266,7 @@ class MessagesManager final : public Actor {
                       int32 total_count, vector<tl_object_ptr<telegram_api::Message>> &&messages,
                       Promise<Unit> &&promise);
 
-  void on_get_common_dialogs(UserId user_id, int32 offset_chat_id, vector<tl_object_ptr<telegram_api::Chat>> &&chats,
+  void on_get_common_dialogs(UserId user_id, int64 offset_chat_id, vector<tl_object_ptr<telegram_api::Chat>> &&chats,
                              int32 total_count);
 
   bool on_update_message_id(int64 random_id, MessageId new_message_id, const string &source);
@@ -578,6 +578,10 @@ class MessagesManager final : public Actor {
                                   DialogId dialog_id, MessageId message_id, DialogId expected_dialog_id,
                                   MessageId expected_message_id, Promise<MessageThreadInfo> promise);
 
+  void get_message_viewers(FullMessageId full_message_id, Promise<td_api::object_ptr<td_api::users>> &&promise);
+
+  bool is_dialog_opened(DialogId dialog_id) const;
+
   bool is_message_edited_recently(FullMessageId full_message_id, int32 seconds);
 
   bool is_deleted_secret_chat(DialogId dialog_id) const;
@@ -644,6 +648,9 @@ class MessagesManager final : public Actor {
                        bool force_read) TD_WARN_UNUSED_RESULT;
 
   Status open_message_content(FullMessageId full_message_id) TD_WARN_UNUSED_RESULT;
+
+  void click_animated_emoji_message(FullMessageId full_message_id,
+                                    Promise<td_api::object_ptr<td_api::sticker>> &&promise);
 
   td_api::object_ptr<td_api::updateScopeNotificationSettings> get_update_scope_notification_settings_object(
       NotificationSettingsScope scope) const;
@@ -898,7 +905,7 @@ class MessagesManager final : public Actor {
   void stop_poll(FullMessageId full_message_id, td_api::object_ptr<td_api::ReplyMarkup> &&reply_markup,
                  Promise<Unit> &&promise);
 
-  Result<string> get_login_button_url(FullMessageId full_message_id, int32 button_id);
+  Result<string> get_login_button_url(FullMessageId full_message_id, int64 button_id);
 
   Result<ServerMessageId> get_invoice_message_id(FullMessageId full_message_id);
 
@@ -1795,6 +1802,10 @@ class MessagesManager final : public Actor {
 
   static Status can_get_media_timestamp_link(DialogId dialog_id, const Message *m);
 
+  Status can_get_message_viewers(FullMessageId full_message_id) TD_WARN_UNUSED_RESULT;
+
+  Status can_get_message_viewers(DialogId dialog_id, const Message *m) const TD_WARN_UNUSED_RESULT;
+
   void cancel_edit_message_media(DialogId dialog_id, Message *m, Slice error_message);
 
   void on_message_media_edited(DialogId dialog_id, MessageId message_id, FileId file_id, FileId thumbnail_file_id,
@@ -2087,7 +2098,7 @@ class MessagesManager final : public Actor {
   void load_messages_impl(const Dialog *d, MessageId from_message_id, int32 offset, int32 limit, int left_tries,
                           bool only_local, Promise<Unit> &&promise);
 
-  void load_dialog_scheduled_messages(DialogId dialog_id, bool from_database, int32 hash, Promise<Unit> &&promise);
+  void load_dialog_scheduled_messages(DialogId dialog_id, bool from_database, int64 hash, Promise<Unit> &&promise);
 
   void on_get_scheduled_messages_from_database(DialogId dialog_id, vector<BufferSlice> &&messages);
 
@@ -2742,6 +2753,9 @@ class MessagesManager final : public Actor {
   void on_get_discussion_message(DialogId dialog_id, MessageId message_id, MessageThreadInfo &&message_thread_info,
                                  Promise<MessageThreadInfo> &&promise);
 
+  void on_get_message_viewers(DialogId dialog_id, vector<UserId> user_ids, bool is_recursive,
+                              Promise<td_api::object_ptr<td_api::users>> &&promise);
+
   static MessageId get_first_database_message_id_by_index(const Dialog *d, MessageSearchFilter filter);
 
   void on_search_dialog_messages_db_result(int64 random_id, DialogId dialog_id, MessageId from_message_id,
@@ -2949,6 +2963,8 @@ class MessagesManager final : public Actor {
   void on_imported_message_attachments_uploaded(int64 random_id, Result<Unit> &&result);
 
   Status can_import_messages(DialogId dialog_id);
+
+  void on_animated_emoji_message_clicked(FullMessageId full_message_id, UserId user_id, string emoji, string data);
 
   void add_sponsored_dialog(const Dialog *d, DialogSource source);
 
