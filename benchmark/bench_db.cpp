@@ -98,10 +98,9 @@ class SqliteKVBench final : public td::Benchmark {
     td::string path = "testdb.sqlite";
     td::SqliteDb::destroy(path).ignore();
     if (is_encrypted) {
-      td::SqliteDb::change_key(path, td::DbKey::password("cucumber"), td::DbKey::empty()).ensure();
-      db = td::SqliteDb::open_with_key(path, td::DbKey::password("cucumber")).move_as_ok();
+      db = td::SqliteDb::change_key(path, true, td::DbKey::password("cucumber"), td::DbKey::empty()).move_as_ok();
     } else {
-      db = td::SqliteDb::open_with_key(path, td::DbKey::empty()).move_as_ok();
+      db = td::SqliteDb::open_with_key(path, true, td::DbKey::empty()).move_as_ok();
     }
     db.exec("PRAGMA encoding=\"UTF-8\"").ensure();
     db.exec("PRAGMA synchronous=NORMAL").ensure();
@@ -188,7 +187,7 @@ class SqliteKeyValueAsyncBench final : public td::Benchmark {
     td::string sql_db_name = "testdb.sqlite";
     td::SqliteDb::destroy(sql_db_name).ignore();
 
-    sql_connection_ = std::make_shared<td::SqliteConnectionSafe>(sql_db_name);
+    sql_connection_ = std::make_shared<td::SqliteConnectionSafe>(sql_db_name, td::DbKey::empty());
     auto &db = sql_connection_->get();
     TRY_STATUS(init_db(db));
 
