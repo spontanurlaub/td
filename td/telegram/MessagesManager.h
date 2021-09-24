@@ -192,6 +192,8 @@ class MessagesManager final : public Actor {
   void get_channel_difference_if_needed(DialogId dialog_id, MessagesInfo &&messages_info,
                                         Promise<MessagesInfo> &&promise);
 
+  void get_channel_differences_if_needed(MessagesInfo &&messages_info, Promise<MessagesInfo> &&promise);
+
   void on_get_messages(vector<tl_object_ptr<telegram_api::Message>> &&messages, bool is_channel_message,
                        bool is_scheduled, const char *source);
 
@@ -223,9 +225,8 @@ class MessagesManager final : public Actor {
                                vector<tl_object_ptr<telegram_api::Message>> &&messages);
   void on_get_recent_locations_failed(int64 random_id);
 
-  void on_get_message_public_forwards_result(int64 random_id, int32 total_count,
-                                             vector<tl_object_ptr<telegram_api::Message>> &&messages);
-  void on_failed_get_message_public_forwards(int64 random_id);
+  void on_get_message_public_forwards(int32 total_count, vector<tl_object_ptr<telegram_api::Message>> &&messages,
+                                      Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
 
   // if message is from_update, flags have_previous and have_next are ignored and must be both true
   FullMessageId on_get_message(tl_object_ptr<telegram_api::Message> message_ptr, bool from_update,
@@ -733,8 +734,8 @@ class MessagesManager final : public Actor {
   vector<MessageId> get_dialog_scheduled_messages(DialogId dialog_id, bool force, bool ignore_result,
                                                   Promise<Unit> &&promise);
 
-  FoundMessages get_message_public_forwards(FullMessageId full_message_id, const string &offset, int32 limit,
-                                            int64 &random_id, Promise<Unit> &&promise);
+  void get_message_public_forwards(FullMessageId full_message_id, string offset, int32 limit,
+                                   Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
 
   tl_object_ptr<td_api::message> get_dialog_message_by_date_object(int64 random_id);
 
@@ -1623,7 +1624,7 @@ class MessagesManager final : public Actor {
   };
 
   class BlockMessageSenderFromRepliesOnServerLogEvent;
-  class ChangeDialogReportSpamStateOnServerLogEvent;
+  class ToggleDialogReportSpamStateOnServerLogEvent;
   class DeleteAllChannelMessagesFromUserOnServerLogEvent;
   class DeleteDialogHistoryFromServerLogEvent;
   class DeleteAllCallMessagesFromServerLogEvent;
@@ -2838,7 +2839,7 @@ class MessagesManager final : public Actor {
 
   void reset_all_notification_settings_on_server(uint64 log_event_id);
 
-  void change_dialog_report_spam_state_on_server(DialogId dialog_id, bool is_spam_dialog, uint64 log_event_id,
+  void toggle_dialog_report_spam_state_on_server(DialogId dialog_id, bool is_spam_dialog, uint64 log_event_id,
                                                  Promise<Unit> &&promise);
 
   void set_dialog_folder_id_on_server(DialogId dialog_id, bool from_binlog);
@@ -2964,7 +2965,10 @@ class MessagesManager final : public Actor {
 
   Status can_import_messages(DialogId dialog_id);
 
-  void on_animated_emoji_message_clicked(FullMessageId full_message_id, UserId user_id, string emoji, string data);
+  void send_get_message_public_forwards_query(DcId dc_id, FullMessageId full_message_id, string offset, int32 limit,
+                                              Promise<td_api::object_ptr<td_api::foundMessages>> &&promise);
+
+  void on_animated_emoji_message_clicked(FullMessageId full_message_id, UserId user_id, Slice emoji, string data);
 
   void add_sponsored_dialog(const Dialog *d, DialogSource source);
 
@@ -3021,7 +3025,7 @@ class MessagesManager final : public Actor {
 
   void save_send_message_log_event(DialogId dialog_id, const Message *m);
 
-  uint64 save_change_dialog_report_spam_state_on_server_log_event(DialogId dialog_id, bool is_spam_dialog);
+  uint64 save_toggle_dialog_report_spam_state_on_server_log_event(DialogId dialog_id, bool is_spam_dialog);
 
   uint64 save_delete_messages_from_server_log_event(DialogId dialog_id, const vector<MessageId> &message_ids,
                                                     bool revoke);
@@ -3276,8 +3280,7 @@ class MessagesManager final : public Actor {
   std::unordered_map<int64, std::pair<int32, vector<MessageId>>>
       found_dialog_recent_location_messages_;  // random_id -> [total_count, [message_id]...]
 
-  std::unordered_map<int64, FoundMessages> found_fts_messages_;             // random_id -> FoundMessages
-  std::unordered_map<int64, FoundMessages> found_message_public_forwards_;  // random_id -> FoundMessages
+  std::unordered_map<int64, FoundMessages> found_fts_messages_;  // random_id -> FoundMessages
 
   struct MessageEmbeddingCodes {
     std::unordered_map<MessageId, string, MessageIdHash> embedding_codes_;

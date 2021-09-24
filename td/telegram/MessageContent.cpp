@@ -1995,7 +1995,7 @@ Result<InputMessageContent> get_input_message_content(
   FileId file_id;
   if (have_file) {
     if (r_file_id.is_error()) {
-      return Status::Error(7, r_file_id.error().message());
+      return Status::Error(400, r_file_id.error().message());
     }
     file_id = r_file_id.ok();
     CHECK(file_id.is_valid());
@@ -5314,11 +5314,12 @@ void get_message_content_animated_emoji_click_sticker(const MessageContent *cont
 }
 
 void on_message_content_animated_emoji_clicked(const MessageContent *content, FullMessageId full_message_id, Td *td,
-                                               string emoji, string data) {
+                                               Slice emoji, string data) {
   if (content->get_type() != MessageContentType::Text) {
     return;
   }
 
+  emoji = remove_emoji_modifiers(emoji);
   auto &text = static_cast<const MessageText *>(content)->text;
   if (!text.entities.empty() || remove_emoji_modifiers(text.text) != emoji) {
     return;
@@ -5559,9 +5560,10 @@ StickerSetId add_sticker_set(Td *td, tl_object_ptr<telegram_api::InputStickerSet
 bool is_unsent_animated_emoji_click(Td *td, DialogId dialog_id, const DialogAction &action) {
   auto emoji = action.get_watching_animations_emoji();
   if (emoji.empty()) {
+    // not a WatchingAnimations action
     return false;
   }
-  return !td->stickers_manager_->is_sent_animated_emoji_click(dialog_id, emoji);
+  return !td->stickers_manager_->is_sent_animated_emoji_click(dialog_id, remove_emoji_modifiers(emoji));
 }
 
 void on_dialog_used(TopDialogCategory category, DialogId dialog_id, int32 date) {
