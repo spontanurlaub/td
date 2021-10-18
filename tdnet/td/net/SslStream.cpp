@@ -96,7 +96,6 @@ long strm_ctrl(BIO *b, int cmd, long num, void *ptr) {
     case BIO_CTRL_FLUSH:
       return 1;
     case BIO_CTRL_PUSH:
-      return 0;
     case BIO_CTRL_POP:
       return 0;
     default:
@@ -506,8 +505,8 @@ int strm_write(BIO *b, const char *buf, int len) {
 }  // namespace detail
 
 SslStream::SslStream() = default;
-SslStream::SslStream(SslStream &&) = default;
-SslStream &SslStream::operator=(SslStream &&) = default;
+SslStream::SslStream(SslStream &&) noexcept = default;
+SslStream &SslStream::operator=(SslStream &&) noexcept = default;
 SslStream::~SslStream() = default;
 
 Result<SslStream> SslStream::create(CSlice host, CSlice cert_file, VerifyPeer verify_peer,
