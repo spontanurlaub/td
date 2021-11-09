@@ -76,19 +76,19 @@ class GetWebPagePreviewQuery final : public Td::ResultHandler {
         G()->net_query_creator().create(telegram_api::messages_getWebPagePreview(flags, text, std::move(entities))));
   }
 
-  void on_result(uint64 id, BufferSlice packet) final {
+  void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_getWebPagePreview>(packet);
     if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
+      return on_error(result_ptr.move_as_error());
     }
 
     auto ptr = result_ptr.move_as_ok();
     LOG(INFO) << "Receive result for GetWebPagePreviewQuery: " << to_string(ptr);
-    td->web_pages_manager_->on_get_web_page_preview_success(request_id_, url_, std::move(ptr), std::move(promise_));
+    td_->web_pages_manager_->on_get_web_page_preview_success(request_id_, url_, std::move(ptr), std::move(promise_));
   }
 
-  void on_error(uint64 id, Status status) final {
-    td->web_pages_manager_->on_get_web_page_preview_fail(request_id_, url_, std::move(status), std::move(promise_));
+  void on_error(Status status) final {
+    td_->web_pages_manager_->on_get_web_page_preview_fail(request_id_, url_, std::move(status), std::move(promise_));
   }
 };
 
@@ -107,10 +107,10 @@ class GetWebPageQuery final : public Td::ResultHandler {
     send_query(G()->net_query_creator().create(telegram_api::messages_getWebPage(url, hash)));
   }
 
-  void on_result(uint64 id, BufferSlice packet) final {
+  void on_result(BufferSlice packet) final {
     auto result_ptr = fetch_result<telegram_api::messages_getWebPage>(packet);
     if (result_ptr.is_error()) {
-      return on_error(id, result_ptr.move_as_error());
+      return on_error(result_ptr.move_as_error());
     }
 
     auto ptr = result_ptr.move_as_ok();
@@ -121,19 +121,19 @@ class GetWebPageQuery final : public Td::ResultHandler {
         int32 view_count = (web_page->flags_ & telegram_api::webPageNotModified::CACHED_PAGE_VIEWS_MASK) != 0
                                ? web_page->cached_page_views_
                                : 0;
-        td->web_pages_manager_->on_get_web_page_instant_view_view_count(web_page_id_, view_count);
+        td_->web_pages_manager_->on_get_web_page_instant_view_view_count(web_page_id_, view_count);
         return promise_.set_value(std::move(web_page_id_));
       } else {
         LOG(ERROR) << "Receive webPageNotModified for " << url_;
-        return on_error(id, Status::Error(500, "Receive webPageNotModified"));
+        return on_error(Status::Error(500, "Receive webPageNotModified"));
       }
     }
-    auto web_page_id = td->web_pages_manager_->on_get_web_page(std::move(ptr), DialogId());
-    td->web_pages_manager_->on_get_web_page_by_url(url_, web_page_id, false);
+    auto web_page_id = td_->web_pages_manager_->on_get_web_page(std::move(ptr), DialogId());
+    td_->web_pages_manager_->on_get_web_page_by_url(url_, web_page_id, false);
     promise_.set_value(std::move(web_page_id));
   }
 
-  void on_error(uint64 id, Status status) final {
+  void on_error(Status status) final {
     promise_.set_error(std::move(status));
   }
 };
