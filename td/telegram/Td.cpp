@@ -160,8 +160,11 @@ void Td::ResultHandler::set_td(Td *td) {
 }
 
 void Td::ResultHandler::send_query(NetQueryPtr query) {
+  CHECK(!is_query_sent_)
+  is_query_sent_ = true;
   td_->add_handler(query->id(), shared_from_this());
-  send(std::move(query));
+  query->debug("Send to NetQueryDispatcher");
+  G()->net_query_dispatcher().dispatch(std::move(query));
 }
 
 class GetPromoDataQuery final : public Td::ResultHandler {
@@ -2114,7 +2117,7 @@ class GetArchivedStickerSetsRequest final : public RequestActor<> {
   StickerSetId offset_sticker_set_id_;
   int32 limit_;
 
-  int32 total_count_;
+  int32 total_count_ = -1;
   vector<StickerSetId> sticker_set_ids_;
 
   void do_run(Promise<Unit> &&promise) final {
@@ -2555,7 +2558,7 @@ class GetEmojiSuggestionsUrlRequest final : public RequestOnceActor {
 
  public:
   GetEmojiSuggestionsUrlRequest(ActorShared<Td> td, uint64 request_id, string &&language_code)
-      : RequestOnceActor(std::move(td), request_id), language_code_(std::move(language_code)) {
+      : RequestOnceActor(std::move(td), request_id), language_code_(std::move(language_code)), random_id_(0) {
   }
 };
 
@@ -3206,12 +3209,6 @@ std::shared_ptr<Td::ResultHandler> Td::extract_handler(uint64 id) {
   auto result = std::move(it->second);
   result_handlers_.erase(it);
   return result;
-}
-
-void Td::send(NetQueryPtr &&query) {
-  VLOG(net_query) << "Send " << query << " to dispatcher";
-  query->debug("Td: send to NetQueryDispatcher");
-  G()->net_query_dispatcher().dispatch(std::move(query));
 }
 
 void Td::on_update(BufferSlice &&update) {
@@ -6257,8 +6254,8 @@ void Td::on_request(uint64 id, td_api::setChatMemberStatus &request) {
 
 void Td::on_request(uint64 id, const td_api::banChatMember &request) {
   CREATE_OK_REQUEST_PROMISE();
-  contacts_manager_->ban_dialog_participant(DialogId(request.chat_id_), std::move(request.member_id_),
-                                            request.banned_until_date_, request.revoke_messages_, std::move(promise));
+  contacts_manager_->ban_dialog_participant(DialogId(request.chat_id_), request.member_id_, request.banned_until_date_,
+                                            request.revoke_messages_, std::move(promise));
 }
 
 void Td::on_request(uint64 id, const td_api::canTransferOwnership &request) {
@@ -8341,7 +8338,7 @@ td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getLangua
       request.language_pack_database_path_, request.localization_target_, request.language_pack_id_, request.key_);
 }
 
-td_api::object_ptr<td_api::Object> Td::do_static_request(const td_api::getPhoneNumberInfoSync &request) {
+td_api::object_ptr<td_api::Object> Td::do_static_request(td_api::getPhoneNumberInfoSync &request) {
   // don't check language_code/phone number UTF-8 correctness
   return CountryInfoManager::get_phone_number_info_sync(request.language_code_,
                                                         std::move(request.phone_number_prefix_));

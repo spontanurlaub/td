@@ -321,7 +321,7 @@ void PollManager::notify_on_poll_update(PollId poll_id) {
     return;
   }
 
-  for (auto full_message_id : it->second) {
+  for (const auto &full_message_id : it->second) {
     td_->messages_manager_->on_external_update_message_content(full_message_id);
   }
 }
@@ -455,8 +455,9 @@ vector<int32> PollManager::get_vote_percentage(const vector<int32> &voter_counts
     option.count++;
   }
   vector<Option> sorted_options;
-  for (auto option : options) {
-    auto pos = option.second.pos;
+  for (const auto &it : options) {
+    const auto &option = it.second;
+    auto pos = option.pos;
     if (gap[pos] > total_voter_count / 2) {
       // do not round to wrong direction
       continue;
@@ -465,7 +466,7 @@ vector<int32> PollManager::get_vote_percentage(const vector<int32> &voter_counts
       // round halves to the 50%
       continue;
     }
-    sorted_options.push_back(option.second);
+    sorted_options.push_back(option);
   }
   std::sort(sorted_options.begin(), sorted_options.end(), [&](const Option &lhs, const Option &rhs) {
     if (gap[lhs.pos] != gap[rhs.pos]) {
@@ -1150,12 +1151,12 @@ double PollManager::get_polling_timeout() const {
 }
 
 void PollManager::on_update_poll_timeout(PollId poll_id) {
-  CHECK(!td_->auth_manager_->is_bot());
-  CHECK(!is_local_poll_id(poll_id));
-
   if (G()->close_flag()) {
     return;
   }
+  CHECK(!td_->auth_manager_->is_bot());
+  CHECK(!is_local_poll_id(poll_id));
+
   auto poll = get_poll(poll_id);
   CHECK(poll != nullptr);
   if (poll->is_closed && poll->is_updated_after_close) {
@@ -1181,11 +1182,10 @@ void PollManager::on_update_poll_timeout(PollId poll_id) {
 }
 
 void PollManager::on_close_poll_timeout(PollId poll_id) {
-  CHECK(!is_local_poll_id(poll_id));
-
   if (G()->close_flag()) {
     return;
   }
+  CHECK(!is_local_poll_id(poll_id));
 
   auto poll = get_poll_editable(poll_id);
   CHECK(poll != nullptr);

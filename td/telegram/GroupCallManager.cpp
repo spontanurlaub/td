@@ -203,7 +203,7 @@ class CreateGroupCallQuery final : public Td::ResultHandler {
       return on_error(Status::Error(500, "Receive wrong response"));
     }
     auto group_call_id = group_call_ids[0];
-    for (auto other_group_call_id : group_call_ids) {
+    for (const auto &other_group_call_id : group_call_ids) {
       if (group_call_id != other_group_call_id) {
         LOG(ERROR) << "Receive wrong CreateGroupCallQuery response " << to_string(ptr);
         return on_error(Status::Error(500, "Receive wrong response"));
@@ -2289,7 +2289,7 @@ void GroupCallManager::on_update_dialog_about(DialogId dialog_id, const string &
   }
   CHECK(!it->second.empty());
 
-  for (auto input_group_call_id : it->second) {
+  for (const auto &input_group_call_id : it->second) {
     auto participant = get_group_call_participant(input_group_call_id, dialog_id);
     CHECK(participant != nullptr);
     if ((from_server || participant->is_fake) && participant->about != about) {
@@ -3920,7 +3920,7 @@ void GroupCallManager::leave_group_call(GroupCallId group_call_id, Promise<Unit>
       process_group_call_after_join_requests(input_group_call_id, "leave_group_call 1");
       return promise.set_value(Unit());
     }
-    if (group_call->need_rejoin) {
+    if (group_call != nullptr && group_call->need_rejoin) {
       group_call->need_rejoin = false;
       send_update_group_call(group_call, "leave_group_call");
       if (try_clear_group_call_participants(input_group_call_id)) {

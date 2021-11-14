@@ -7,6 +7,7 @@
 #pragma once
 
 #include "td/telegram/AccessRights.h"
+#include "td/telegram/AffectedHistory.h"
 #include "td/telegram/ChannelId.h"
 #include "td/telegram/DialogAction.h"
 #include "td/telegram/DialogDate.h"
@@ -1035,7 +1036,7 @@ class MessagesManager final : public Actor {
 
   // Do not forget to update MessagesManager::update_message and all make_unique<Message> when this class is changed
   struct Message {
-    int32 random_y;
+    int32 random_y = 0;
 
     MessageId message_id;
     UserId sender_user_id;
@@ -2026,6 +2027,14 @@ class MessagesManager final : public Actor {
   void read_all_dialog_mentions_on_server(DialogId dialog_id, uint64 log_event_id, Promise<Unit> &&promise);
 
   void unpin_all_dialog_messages_on_server(DialogId dialog_id, uint64 log_event_id, Promise<Unit> &&promise);
+
+  using AffectedHistoryQuery = std::function<void(DialogId, Promise<AffectedHistory>)>;
+
+  void run_affected_history_query_until_complete(DialogId dialog_id, AffectedHistoryQuery query,
+                                                 bool get_affected_messages, Promise<Unit> &&promise);
+
+  void on_get_affected_history(DialogId dialog_id, AffectedHistoryQuery query, bool get_affected_messages,
+                               AffectedHistory affected_history, Promise<Unit> &&promise);
 
   static MessageId find_message_by_date(const Message *m, int32 date);
 
