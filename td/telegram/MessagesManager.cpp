@@ -17280,6 +17280,7 @@ Status MessagesManager::can_get_message_viewers(DialogId dialog_id, const Messag
   if (td_->auth_manager_->is_bot()) {
     return Status::Error(400, "User is bot");
   }
+  CHECK(m != nullptr);
   if (!m->is_outgoing) {
     return Status::Error(400, "Can't get viewers of incoming messages");
   }
@@ -17316,7 +17317,7 @@ Status MessagesManager::can_get_message_viewers(DialogId dialog_id, const Messag
   if (participant_count == 0) {
     return Status::Error(400, "Chat is empty or have unknown number of members");
   }
-  if (participant_count > G()->shared_config().get_option_integer("chat_read_mark_size_threshold", 50)) {
+  if (participant_count > G()->shared_config().get_option_integer("chat_read_mark_size_threshold", 100)) {
     return Status::Error(400, "Chat is too big");
   }
 
@@ -17330,6 +17331,10 @@ Status MessagesManager::can_get_message_viewers(DialogId dialog_id, const Messag
     return Status::Error(400, "Local messages can't have viewers");
   }
   CHECK(m->message_id.is_server());
+
+  if (m->content->get_type() == MessageContentType::Poll &&
+      get_message_content_poll_is_anonymous(td_, m->content.get())) {
+  }
 
   return Status::OK();
 }
