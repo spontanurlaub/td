@@ -98,7 +98,7 @@ class Td final : public Actor {
   Td &operator=(Td &&) = delete;
   ~Td() final;
 
-  static constexpr const char *TDLIB_VERSION = "1.7.10";
+  static constexpr const char *TDLIB_VERSION = "1.7.11";
 
   struct Options {
     std::shared_ptr<NetQueryStats> net_query_stats;
@@ -525,7 +525,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getMessages &request);
 
-  void on_request(uint64 id, const td_api::getChatSponsoredMessages &request);
+  void on_request(uint64 id, const td_api::getChatSponsoredMessage &request);
 
   void on_request(uint64 id, const td_api::viewSponsoredMessage &request);
 
@@ -661,7 +661,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::getChatAvailableMessageSenders &request);
 
-  void on_request(uint64 id, const td_api::setChatDefaultMessageSender &request);
+  void on_request(uint64 id, const td_api::setChatMessageSender &request);
 
   void on_request(uint64 id, td_api::sendMessage &request);
 
@@ -793,7 +793,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::leaveGroupCall &request);
 
-  void on_request(uint64 id, const td_api::discardGroupCall &request);
+  void on_request(uint64 id, const td_api::endGroupCall &request);
 
   void on_request(uint64 id, td_api::getGroupCallStreamSegment &request);
 
@@ -819,7 +819,7 @@ class Td final : public Actor {
 
   void on_request(uint64 id, const td_api::setChatPhoto &request);
 
-  void on_request(uint64 id, const td_api::setChatMessageTtlSetting &request);
+  void on_request(uint64 id, const td_api::setChatMessageTtl &request);
 
   void on_request(uint64 id, const td_api::setChatPermissions &request);
 
