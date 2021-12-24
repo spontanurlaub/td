@@ -14685,7 +14685,7 @@ void MessagesManager::on_get_dialogs(FolderId folder_id, vector<tl_object_ptr<te
         DialogDate dialog_date = it->second;
         CHECK(dialog_date.get_dialog_id() == dialog_id);
 
-        if (max_dialog_date < dialog_date) {
+        if (dialog_date.get_date() > 0 && max_dialog_date < dialog_date) {
           max_dialog_date = dialog_date;
         }
       } else {
@@ -16035,7 +16035,7 @@ void MessagesManager::load_folder_dialog_list(FolderId folder_id, int32 limit, b
     }
     return;
   }
-  LOG(INFO) << "Load dialog list in " << folder_id << " with limit " << limit;
+  LOG(INFO) << "Load chat list in " << folder_id << " with limit " << limit;
   multipromise.add_promise(PromiseCreator::lambda([actor_id = actor_id(this), folder_id](Result<Unit> result) {
     send_closure_later(actor_id, &MessagesManager::on_load_folder_dialog_list, folder_id, std::move(result));
   }));
@@ -16167,6 +16167,13 @@ void MessagesManager::on_get_dialogs_from_database(FolderId folder_id, int32 lim
   if (!have_more_dialogs_in_database) {
     folder.last_loaded_database_dialog_date_ = MAX_DIALOG_DATE;
     LOG(INFO) << "Set last loaded database dialog date to " << folder.last_loaded_database_dialog_date_;
+    if (folder.last_database_server_dialog_date_.get_date() == 0 &&
+        folder.last_database_server_dialog_date_ != MAX_DIALOG_DATE) {
+      // replace definitely wrong folder.last_database_server_dialog_date_ with max_dialog_date
+      LOG(ERROR) << "Fix last database server dialog date from " << folder.last_database_server_dialog_date_ << " to "
+                 << max_dialog_date;
+      folder.last_database_server_dialog_date_ = max_dialog_date;
+    }
     folder.last_server_dialog_date_ = max(folder.last_server_dialog_date_, folder.last_database_server_dialog_date_);
     LOG(INFO) << "Set last server dialog date to " << folder.last_server_dialog_date_;
     update_last_dialog_date(folder_id);
