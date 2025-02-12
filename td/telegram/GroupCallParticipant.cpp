@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,6 +8,7 @@
 
 #include "td/telegram/Global.h"
 #include "td/telegram/MessageSender.h"
+#include "td/telegram/telegram_api.h"
 
 #include "td/utils/logging.h"
 
@@ -71,15 +72,36 @@ GroupCallParticipant::GroupCallParticipant(const tl_object_ptr<telegram_api::gro
 }
 
 bool GroupCallParticipant::is_versioned_update(const tl_object_ptr<telegram_api::groupCallParticipant> &participant) {
-  // updates about new and left participants must be applyed as versioned, even they don't increase version
+  // updates about new and left participants must be applied as versioned, even they don't increase version
   return participant->just_joined_ || participant->left_ || participant->versioned_;
 }
 
-GroupCallParticipantOrder GroupCallParticipant::get_real_order(bool can_self_unmute, bool joined_date_asc,
-                                                               bool keep_active_date) const {
+GroupCallParticipantOrder GroupCallParticipant::get_real_order(bool can_self_unmute, bool joined_date_asc) const {
   auto sort_active_date = td::max(active_date, local_active_date);
-  if (!keep_active_date && sort_active_date < G()->unix_time() - 300) {
+  if (sort_active_date == 0 && !get_is_muted_by_admin()) {  // if the participant isn't muted by admin
+    if (get_is_muted_by_themselves()) {
+      sort_active_date = joined_date;
+    } else {
+      sort_active_date = G()->unix_time();
+    }
+  }
+  if (sort_active_date < G()->unix_time() - 300) {
     sort_active_date = 0;
+  }
+  auto sort_raise_hand_rating = can_self_unmute ? raise_hand_rating : 0;
+  auto sort_joined_date = joined_date_asc ? std::numeric_limits<int32>::max() - joined_date : joined_date;
+  bool has_video = !video_payload.is_empty() || !presentation_payload.is_empty();
+  return GroupCallParticipantOrder(has_video, sort_active_date, sort_raise_hand_rating, sort_joined_date);
+}
+
+GroupCallParticipantOrder GroupCallParticipant::get_server_order(bool can_self_unmute, bool joined_date_asc) const {
+  auto sort_active_date = active_date;
+  if (sort_active_date == 0 && !server_is_muted_by_admin) {  // if the participant isn't muted by admin
+    if (server_is_muted_by_themselves) {
+      sort_active_date = joined_date;
+    } else {
+      sort_active_date = G()->unix_time();
+    }
   }
   auto sort_raise_hand_rating = can_self_unmute ? raise_hand_rating : 0;
   auto sort_joined_date = joined_date_asc ? std::numeric_limits<int32>::max() - joined_date : joined_date;

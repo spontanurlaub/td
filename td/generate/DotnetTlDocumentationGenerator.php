@@ -11,7 +11,7 @@ class DotnetTlDocumentationGenerator extends TlDocumentationGenerator
             {
                 return ucfirst(preg_replace_callback('/_([A-Za-z])/', function ($matches) {return strtoupper($matches[1]);}, $word_matches[0]));
             }, $doc);
-        $doc = htmlspecialchars($doc, ENT_XML1);
+        $doc = htmlspecialchars($doc, ENT_XML1, 'UTF-8');
         $doc = str_replace('*/', '*&#47;', $doc);
         return $doc;
     }
@@ -164,7 +164,7 @@ EOT
         return "\r\n$shift/// <para>Returns <see cref=\"".substr($return_type, 0, -1).'"/>.</para>';
     }
 
-    protected function addClassDocumentation($class_name, $base_class_name, $description)
+    protected function addClassDocumentation($class_name, $base_class_name, $return_type, $description)
     {
         $this->addDocumentation("public ref class $class_name sealed : $base_class_name {", <<<EOT
 /// <summary>
@@ -177,8 +177,11 @@ EOT
     protected function addFieldDocumentation($class_name, $field_name, $type_name, $field_info, $may_be_null)
     {
         $end = ';';
-        if (substr($type_name, 0, strlen($field_name)) === $field_name) {
+        if ($type_name == $field_name.'^' || ($type_name == 'Message^' && $field_name == 'ReplyToMessage')) {
             $type_name = '::Telegram::Td::Api::'.$type_name;
+            $end = ' {';
+        } else if ($class_name == "WebPage" && $field_name == "Stickers" && $type_name == "Array<Sticker^>^") {
+            $type_name = 'Array<::Telegram::Td::Api::Sticker^>^';
             $end = ' {';
         }
         $full_line = $class_name."  property $type_name $field_name$end";

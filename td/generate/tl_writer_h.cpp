@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -28,7 +28,14 @@ std::string TD_TL_writer_h::forward_declaration(std::string type) {
   return "";
 }
 
-std::string TD_TL_writer_h::gen_output_begin() const {
+std::string TD_TL_writer_h::gen_output_begin(const std::string &additional_imports) const {
+  if (!additional_imports.empty()) {
+    return "#pragma once\n\n" + additional_imports +
+           "namespace td {\n"
+           "namespace " +
+           tl_name + " {\n\n";
+  }
+
   std::string ext_include_str;
   for (auto &it : ext_include) {
     ext_include_str += "#include " + it + "\n";
@@ -53,10 +60,18 @@ std::string TD_TL_writer_h::gen_output_begin() const {
          "#include <utility>\n"
          "#include <vector>\n\n"
          "namespace td {\n" +
-         ext_forward_declaration + "namespace " + tl_name +
-         " {\n\n"
+         ext_forward_declaration + "namespace " + tl_name + " {\n\n";
+}
 
-         "using int32 = std::int32_t;\n"
+std::string TD_TL_writer_h::gen_output_begin_once() const {
+  std::string secure_strings;
+  if (tl_name != "td_api" && tl_name != "telegram_api" && tl_name != "mtproto_api") {
+    secure_strings = "using secure_string = " + string_type +
+                     ";\n\n"
+                     "using secure_bytes = " +
+                     bytes_type + ";\n\n";
+  }
+  return "using int32 = std::int32_t;\n"
          "using int53 = std::int64_t;\n"
          "using int64 = std::int64_t;\n\n"
 
@@ -65,8 +80,7 @@ std::string TD_TL_writer_h::gen_output_begin() const {
          ";\n\n"
 
          "using bytes = " +
-         bytes_type +
-         ";\n\n"
+         bytes_type + ";\n\n" + secure_strings +
 
          "template <class Type>\n"
          "using array = std::vector<Type>;\n\n"
@@ -255,9 +269,17 @@ std::string TD_TL_writer_h::gen_forward_class_declaration(const std::string &cla
 }
 
 std::string TD_TL_writer_h::gen_class_begin(const std::string &class_name, const std::string &base_class_name,
-                                            bool is_proxy) const {
-  return "class " + class_name + (!is_proxy ? " final " : "") + ": public " + base_class_name +
+                                            bool is_proxy, const tl::tl_tree *result) const {
+  if (is_proxy) {
+    return "class " + class_name + ": public " + base_class_name +
+           " {\n"
+           " public:\n";
+  }
+  return "class " + class_name + " final : public " + base_class_name +
          " {\n"
+         "  std::int32_t get_id() const final {\n"
+         "    return ID;\n"
+         "  }\n\n"
          " public:\n";
 }
 
@@ -281,11 +303,7 @@ std::string TD_TL_writer_h::gen_get_id(const std::string &class_name, std::int32
 
   return "\n"
          "  static const std::int32_t ID = " +
-         int_to_string(id) +
-         ";\n"
-         "  std::int32_t get_id() const final {\n"
-         "    return ID;\n"
-         "  }\n";
+         int_to_string(id) + ";\n";
 }
 
 std::string TD_TL_writer_h::gen_function_result_type(const tl::tl_tree *result) const {

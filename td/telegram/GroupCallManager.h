@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2021
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -17,13 +17,13 @@
 #include "td/telegram/UserId.h"
 
 #include "td/actor/actor.h"
-#include "td/actor/PromiseFuture.h"
-#include "td/actor/Timeout.h"
+#include "td/actor/MultiTimeout.h"
 
 #include "td/utils/common.h"
+#include "td/utils/FlatHashMap.h"
+#include "td/utils/Promise.h"
 #include "td/utils/Status.h"
 
-#include <unordered_map>
 #include <utility>
 
 namespace td {
@@ -39,6 +39,8 @@ class GroupCallManager final : public Actor {
   GroupCallManager &operator=(GroupCallManager &&) = delete;
   ~GroupCallManager() final;
 
+  Result<InputGroupCallId> get_input_group_call_id(GroupCallId group_call_id);
+
   bool is_group_call_being_joined(InputGroupCallId input_group_call_id) const;
 
   bool is_group_call_joined(InputGroupCallId input_group_call_id) const;
@@ -49,7 +51,11 @@ class GroupCallManager final : public Actor {
 
   void set_group_call_default_join_as(DialogId dialog_id, DialogId as_dialog_id, Promise<Unit> &&promise);
 
-  void create_voice_chat(DialogId dialog_id, string title, int32 start_date, Promise<GroupCallId> &&promise);
+  void create_voice_chat(DialogId dialog_id, string title, int32 start_date, bool is_rtmp_stream,
+                         Promise<GroupCallId> &&promise);
+
+  void get_voice_chat_rtmp_stream_url(DialogId dialog_id, bool revoke,
+                                      Promise<td_api::object_ptr<td_api::rtmpUrl>> &&promise);
 
   void get_group_call(GroupCallId group_call_id, Promise<td_api::object_ptr<td_api::groupCall>> &&promise);
 
@@ -57,6 +63,9 @@ class GroupCallManager final : public Actor {
 
   void reload_group_call(InputGroupCallId input_group_call_id,
                          Promise<td_api::object_ptr<td_api::groupCall>> &&promise);
+
+  void get_group_call_streams(GroupCallId group_call_id,
+                              Promise<td_api::object_ptr<td_api::groupCallStreams>> &&promise);
 
   void get_group_call_stream_segment(GroupCallId group_call_id, int64 time_offset, int32 scale, int32 channel_id,
                                      td_api::object_ptr<td_api::GroupCallVideoQuality> quality,
@@ -121,7 +130,7 @@ class GroupCallManager final : public Actor {
 
   void on_update_group_call(tl_object_ptr<telegram_api::GroupCall> group_call_ptr, DialogId dialog_id);
 
-  void on_user_speaking_in_group_call(GroupCallId group_call_id, DialogId dialog_id, int32 date,
+  void on_user_speaking_in_group_call(GroupCallId group_call_id, DialogId dialog_id, bool is_muted_by_admin, int32 date,
                                       bool is_recursive = false);
 
   void on_get_group_call_participants(InputGroupCallId input_group_call_id,
@@ -172,14 +181,14 @@ class GroupCallManager final : public Actor {
 
   void on_sync_participants_timeout(GroupCallId group_call_id);
 
-  Result<InputGroupCallId> get_input_group_call_id(GroupCallId group_call_id);
-
   GroupCallId get_next_group_call_id(InputGroupCallId input_group_call_id);
 
   GroupCall *add_group_call(InputGroupCallId input_group_call_id, DialogId dialog_id);
 
   const GroupCall *get_group_call(InputGroupCallId input_group_call_id) const;
   GroupCall *get_group_call(InputGroupCallId input_group_call_id);
+
+  Status can_join_group_calls(DialogId dialog_id) const;
 
   Status can_manage_group_calls(DialogId dialog_id) const;
 
@@ -194,6 +203,10 @@ class GroupCallManager final : public Actor {
   void finish_get_group_call(InputGroupCallId input_group_call_id,
                              Result<tl_object_ptr<telegram_api::phone_groupCall>> &&result);
 
+  void finish_get_group_call_streams(InputGroupCallId input_group_call_id, int32 audio_source,
+                                     Result<td_api::object_ptr<td_api::groupCallStreams>> &&result,
+                                     Promise<td_api::object_ptr<td_api::groupCallStreams>> &&promise);
+
   void finish_get_group_call_stream_segment(InputGroupCallId input_group_call_id, int32 audio_source,
                                             Result<string> &&result, Promise<string> &&promise);
 
@@ -201,6 +214,8 @@ class GroupCallManager final : public Actor {
                                          Result<Unit> &&result);
 
   static const string &get_group_call_title(const GroupCall *group_call);
+
+  static bool get_group_call_is_joined(const GroupCall *group_call);
 
   static bool get_group_call_start_subscribed(const GroupCall *group_call);
 
@@ -220,11 +235,15 @@ class GroupCallManager final : public Actor {
 
   static bool get_group_call_can_enable_video(const GroupCall *group_call);
 
+  static bool is_group_call_active(const GroupCall *group_call);
+
   bool need_group_call_participants(InputGroupCallId input_group_call_id) const;
 
-  bool need_group_call_participants(InputGroupCallId input_group_call_id, const GroupCall *group_call) const;
+  static bool need_group_call_participants(const GroupCall *group_call);
 
   bool process_pending_group_call_participant_updates(InputGroupCallId input_group_call_id);
+
+  bool is_my_audio_source(InputGroupCallId input_group_call_id, const GroupCall *group_call, int32 audio_source) const;
 
   void sync_group_call_participants(InputGroupCallId input_group_call_id);
 
@@ -262,7 +281,7 @@ class GroupCallManager final : public Actor {
 
   void finish_load_group_call_administrators(InputGroupCallId input_group_call_id, Result<DialogParticipants> &&result);
 
-  int32 cancel_join_group_call_request(InputGroupCallId input_group_call_id);
+  int32 cancel_join_group_call_request(InputGroupCallId input_group_call_id, GroupCall *group_call);
 
   int32 cancel_join_group_call_presentation_request(InputGroupCallId input_group_call_id);
 
@@ -272,9 +291,10 @@ class GroupCallManager final : public Actor {
 
   void process_group_call_after_join_requests(InputGroupCallId input_group_call_id, const char *source);
 
-  GroupCallParticipants *add_group_call_participants(InputGroupCallId input_group_call_id);
+  GroupCallParticipants *add_group_call_participants(InputGroupCallId input_group_call_id, const char *source);
 
-  GroupCallParticipant *get_group_call_participant(InputGroupCallId input_group_call_id, DialogId dialog_id);
+  GroupCallParticipant *get_group_call_participant(InputGroupCallId input_group_call_id, DialogId dialog_id,
+                                                   const char *source);
 
   GroupCallParticipant *get_group_call_participant(GroupCallParticipants *group_call_participants,
                                                    DialogId dialog_id) const;
@@ -381,21 +401,20 @@ class GroupCallManager final : public Actor {
 
   vector<InputGroupCallId> input_group_call_ids_;
 
-  std::unordered_map<InputGroupCallId, unique_ptr<GroupCall>, InputGroupCallIdHash> group_calls_;
+  FlatHashMap<InputGroupCallId, unique_ptr<GroupCall>, InputGroupCallIdHash> group_calls_;
 
   string pending_group_call_join_params_;
 
-  std::unordered_map<InputGroupCallId, unique_ptr<GroupCallParticipants>, InputGroupCallIdHash>
-      group_call_participants_;
-  std::unordered_map<DialogId, vector<InputGroupCallId>, DialogIdHash> participant_id_to_group_call_id_;
+  FlatHashMap<InputGroupCallId, unique_ptr<GroupCallParticipants>, InputGroupCallIdHash> group_call_participants_;
+  FlatHashMap<DialogId, vector<InputGroupCallId>, DialogIdHash> participant_id_to_group_call_id_;
 
-  std::unordered_map<GroupCallId, unique_ptr<GroupCallRecentSpeakers>, GroupCallIdHash> group_call_recent_speakers_;
+  FlatHashMap<GroupCallId, unique_ptr<GroupCallRecentSpeakers>, GroupCallIdHash> group_call_recent_speakers_;
 
-  std::unordered_map<InputGroupCallId, vector<Promise<td_api::object_ptr<td_api::groupCall>>>, InputGroupCallIdHash>
+  FlatHashMap<InputGroupCallId, vector<Promise<td_api::object_ptr<td_api::groupCall>>>, InputGroupCallIdHash>
       load_group_call_queries_;
 
-  std::unordered_map<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash> pending_join_requests_;
-  std::unordered_map<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash>
+  FlatHashMap<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash> pending_join_requests_;
+  FlatHashMap<InputGroupCallId, unique_ptr<PendingJoinRequest>, InputGroupCallIdHash>
       pending_join_presentation_requests_;
   uint64 join_group_request_generation_ = 0;
 
